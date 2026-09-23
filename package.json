@@ -19,7 +19,7 @@
     "android:coming-soon": "npm run build:coming-soon && npx cap sync android",
     "ios:coming-soon": "npm run build:coming-soon && npx cap sync ios",
     "desktop:build": "npm run build",
-    "desktop:dist": "npm run desktop:build && electron-builder --win",
+    "desktop:dist": "npm run desktop:build && electron-builder --win --publish never",
     "server": "node server.mjs"
   },
   "dependencies": {
