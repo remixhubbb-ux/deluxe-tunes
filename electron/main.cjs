@@ -5,6 +5,7 @@ function createWindow() {
   const window = new BrowserWindow({
     width: 1440,
     height: 920,
+    icon: path.join(__dirname, '..', 'dist', 'logo.png'),
     minWidth: 1024,
     minHeight: 680,
     backgroundColor: '#05080b',

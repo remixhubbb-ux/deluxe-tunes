@@ -1086,8 +1086,10 @@ LYRICS["only-thing-left-alex-warren"] = [
 
 LYRICS["sf-cypher-24"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
 
-const INITIAL=DEMOS.map(d=>({...d,demo:true,duration:d.length,url:d.file}));
-const SINGLE_SONG_IDS = new Set(ALBUMS.filter(album=>album.type==="single").flatMap(album=>album.trackIds||[]));
+const assetUrl=(value)=>value?.startsWith("/")?`${import.meta.env.BASE_URL}${value.slice(1)}`:value;
+const ALBUMS_WITH_ASSETS=ALBUMS.map(album=>({...album,artwork:assetUrl(album.artwork)}));
+const INITIAL=DEMOS.map(d=>({...d,file:assetUrl(d.file),artwork:assetUrl(d.artwork),demo:true,duration:d.length,url:assetUrl(d.file)}));
+const SINGLE_SONG_IDS = new Set(ALBUMS_WITH_ASSETS.filter(album=>album.type==="single").flatMap(album=>album.trackIds||[]));
 const STORAGE_KEYS={likes:"dt5_likes",stats:"dt4_stats",sharedPlays:"dt5_shared_plays",livePlays:"dt8_live_plays",highPopularityPlaySchedule:"dt8_high_popularity_play_schedule",recent:"dt6_recent",searches:"dt6_searches",follows:"dt6_follows",playlists:"dt6_playlists",libraryAlbums:"dt7_library_albums",downloads:"dt7_downloads",theme:"dt6_theme",sleep:"dt6_sleep",account:"dt8_account",session:"dt8_session",discord:"dt8_discord",spotify:"dt8_spotify",spotifyProfile:"dt8_spotify_profile"};
 const SPOTIFY_IMPORT_DEMO={profile:{display_name:"Deluxe Listener",email:"spotify@deluxe.tunes",country:"UK"},playlists:[{name:"Night Drive",tracks:["bad-oneda","let-me-in-oneda","eternity-alex-warren"]},{name:"Late Night Cuts",tracks:["sienna-the-visitor","ufo-d-block-europe-aitch","rain-aitch-aj-tracey"]},{name:"Favourites",tracks:["major-pay-oneda-renee-stormz","clash-dave-stormzy","sienna-you-stole-the-show"]}],likedSongs:["ufo-d-block-europe-aitch","sienna-the-visitor","eternity-alex-warren","major-pay-oneda-renee-stormz"],history:["rain-aitch-aj-tracey","clash-dave-stormzy","sienna-you-stole-the-show","set-it-off-oneda","ufo-d-block-europe-aitch"]};
 const safeJSON=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||"null")??fallback}catch{return fallback}};
@@ -1095,9 +1097,9 @@ const isHighPopularityTrack=(song)=>Number(song?.plays||0)>=100000000;
 const randomWhole=(min,max)=>Math.floor(Math.random()*(max-min+1))+min;
 const fmt=n=>{n=Math.max(0,Math.floor(n||0));return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`};
 const normalizeKey=(value)=>normalizeSpotifyMatchText(value);
-const WINDOWS_DOWNLOAD_URL=import.meta.env.VITE_WINDOWS_DOWNLOAD_URL||"https://github.com/remixhubbb-ux/deluxe-tunes/releases/latest/download/Deluxe-Tunes-Setup.exe";
+const WINDOWS_DOWNLOAD_URL=import.meta.env.VITE_WINDOWS_DOWNLOAD_URL||"https://github.com/remixhubbb-ux/deluxe-tunes/releases/download/v8.1.0/Deluxe-Tunes-Setup.exe";
 
-function Logo({compact=false}){return <div className={"logo "+(compact?"compact":"")}><img src="/logo.png" alt="Deluxe Tunes"/></div>}
+function Logo({compact=false}){return <div className={"logo "+(compact?"compact":"")}><img src={assetUrl("/logo.png")} alt="Deluxe Tunes"/></div>}
 
 function Cover({song,size=""}){return <div className={"coverArt "+size} style={{"--a":song.color?.[0]||"#7c3aed","--b":song.color?.[1]||"#06b6d4"}}>{song.artwork ? <img className="coverImage" src={song.artwork} alt="" /> : null}
   <div className="coverGlow"/>{!song.artwork&&<div className="coverInitial">{song.title?.slice(0,1)}</div>}</div>}
@@ -1107,7 +1109,7 @@ function DevelopmentPreview(){
     <div className="developmentGrid" aria-hidden="true"/>
     <div className="developmentGlow developmentGlowOne" aria-hidden="true"/>
     <div className="developmentGlow developmentGlowTwo" aria-hidden="true"/>
-    <header className="developmentHeader"><div className="developmentBrand"><img src="/logo.png" alt=""/><span>DELUXE TUNES</span></div><span className="developmentStatus"><i/> PUBLIC PREVIEW</span></header>
+    <header className="developmentHeader"><div className="developmentBrand"><img src={assetUrl("/logo.png")} alt=""/><span>DELUXE TUNES</span></div><span className="developmentStatus"><i/> PUBLIC PREVIEW</span></header>
     <section className="developmentContent">
       <div className="developmentEyebrow"><Radio size={14}/> DELUXE TUNES — IN EARLY DEVELOPMENT</div>
       <h1>We're still building<br/><em>the signal.</em></h1>
@@ -1162,7 +1164,7 @@ function ComingSoon(){
         <div className="comingHalo haloB"/>
         <div className="comingVinyl">
           <div className="vinylGrooves"/>
-          <div className="vinylLabel"><img src="/logo.png" alt=""/></div>
+          <div className="vinylLabel"><img src={assetUrl("/logo.png")} alt=""/></div>
           <div className="vinylShine"/>
         </div>
         <div className="comingFloating comingFloatingTop"><Zap size={14}/> SOMETHING BIG IS PLAYING</div>
@@ -1271,7 +1273,7 @@ function App(){
   const [volume,setVolume]=useState(.78),[query,setQuery]=useState(""),[page,setPage]=useState("home");
   const [toast,setToast]=useState(""),[shuffle,setShuffle]=useState(false),[repeat,setRepeat]=useState(false),[showLyrics,setShowLyrics]=useState(false),[selectedArtist,setSelectedArtist]=useState(null),[selectedAlbum,setSelectedAlbum]=useState(null),[playbackReturnAlbum,setPlaybackReturnAlbum]=useState(null),[libraryTab,setLibraryTab]=useState("playlists"),[previousPage,setPreviousPage]=useState("home");
   const appSessionStartedAt=useRef(Date.now());
-  const albumTrackIds=new Set(ALBUMS.filter(album=>album.type==="album").flatMap(album=>album.trackIds||[]));
+  const albumTrackIds=new Set(ALBUMS_WITH_ASSETS.filter(album=>album.type==="album").flatMap(album=>album.trackIds||[]));
   const pageRef=useRef(page);
   const showLyricsRef=useRef(showLyrics);
   useEffect(()=>{pageRef.current=page},[page]);
@@ -1374,7 +1376,7 @@ function App(){
       if (orderedIds.length) return orderedIds.map(id => idMap.get(id)).filter(Boolean);
       return songList;
     };
-    const custom=ALBUMS.filter(a=>a.type!=="single").map(a=>({...a,songs:orderedAlbumSongs(a,songs)}));
+    const custom=ALBUMS_WITH_ASSETS.filter(a=>a.type!=="single").map(a=>({...a,songs:orderedAlbumSongs(a,songs)}));
     const customNames=new Set(custom.map(a=>a.title.toLowerCase()));
     const generated=[...new Map(songs.map(s=>[s.album,s])).values()]
       .filter(a=>a.album && !customNames.has(a.album.toLowerCase()))
@@ -1992,7 +1994,7 @@ function HomeEditorial({current,latestIsAlbum,songs,likes,follows,play,playAlbum
 function LandingHero({latest,latestIsAlbum,songs,likes,follows,play,openAlbum,goSearch,goStats}){
   function movePointer(event){const rect=event.currentTarget.getBoundingClientRect();const x=(event.clientX-rect.left)/rect.width;const y=(event.clientY-rect.top)/rect.height;event.currentTarget.style.setProperty("--pointer-x",`${x*100}%`);event.currentTarget.style.setProperty("--pointer-y",`${y*100}%`);event.currentTarget.style.setProperty("--tilt-x",`${(y-.5)*-3}deg`);event.currentTarget.style.setProperty("--tilt-y",`${(x-.5)*3}deg`)}
   return <section className="workbenchHero" onPointerMove={movePointer} onPointerLeave={event=>{event.currentTarget.style.setProperty("--pointer-x","50%");event.currentTarget.style.setProperty("--pointer-y","50%");event.currentTarget.style.setProperty("--tilt-x","0deg");event.currentTarget.style.setProperty("--tilt-y","0deg")}}>
-    <header className="workbenchTop"><span className="workbenchBrand"><img src="/logo.png" alt=""/> DELUXE TUNES</span><span className="workbenchMode">AUDIO WORKBENCH <i/></span><span className="workbenchMeta">LOCAL LIBRARY&nbsp;&nbsp; / &nbsp;&nbsp;DT//06</span><button onClick={goSearch}>Open library <ChevronRight size={14}/></button></header>
+    <header className="workbenchTop"><span className="workbenchBrand"><img src={assetUrl("/logo.png")} alt=""/> DELUXE TUNES</span><span className="workbenchMode">AUDIO WORKBENCH <i/></span><span className="workbenchMeta">LOCAL LIBRARY&nbsp;&nbsp; / &nbsp;&nbsp;DT//06</span><button onClick={goSearch}>Open library <ChevronRight size={14}/></button></header>
     <div className="workbenchGrid"><aside className="workbenchRail"><span className="railIndex">01</span><b>NOW<br/>PLAYING</b><div className="railRule"/><span className="railCaption">AUDIO<br/>ENGINE<br/>READY</span><button onClick={goStats}><BarChart3 size={16}/><small>PROFILE</small></button></aside>
       <main className="workbenchCenter"><div className="albumStage" style={{"--stage-art":`url(${latest?.artwork||"/images/location-dave-burna-boy.jpg"})`}}><div className="albumAtmosphere"/><div className="albumReflection"/><div className="albumHeroArtwork"><Cover song={latest}/><span>01 / FEATURED LISTEN</span></div><div className="albumStageMark">DELUXE<br/><em>TUNES</em></div><div className="stageLine stageLineA"/><div className="stageLine stageLineB"/></div><div className="trackIdentity"><div><span>NOW PLAYING</span><h1>{latest?.title||"Choose a track"}</h1><p>{latest?.artist||"Deluxe Tunes"} <b>·</b> {latest?.album||"Local library"}</p></div><button onClick={()=>latestIsAlbum?openAlbum(latest):latest&&play(latest)} className="identityPlay" aria-label="Play current track"><Play size={18} fill="currentColor"/></button></div><div className="waveTransport"><div className="waveTimeline">{Array.from({length:54},(_,i)=><i key={i} style={{"--wave-h":`${12+(i%9)*4}px`}}/>)}<span/></div><div className="transportMeta"><span>0:00</span><b>03:54</b></div><div className="transportControls"><button><SkipBack size={15}/></button><button className="transportMain" onClick={()=>latest&&play(latest)}><Play size={15} fill="currentColor"/></button><button><SkipForward size={15}/></button><button onClick={goSearch}><Search size={14}/></button></div></div></main>
       <aside className="profileRail"><span className="railIndex">02</span><b>LISTENING<br/>PROFILE</b><div className="profileDial"><span>{String(songs.length).padStart(2,"0")}</span><small>TRACKS<br/>READY</small></div><div className="profileStats"><span><b>{String(likes.length).padStart(2,"0")}</b><small>LIKED</small></span><span><b>{String(follows.length).padStart(2,"0")}</b><small>FOLLOWED</small></span></div><button onClick={goStats}>View full profile <ChevronRight size={14}/></button></aside>
@@ -2106,8 +2108,8 @@ function buildArtistPlayQueue(artist, songs, orderedArtistSongs){
 
 function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlaylist,back,openAlbum,follows,toggleFollow,downloads,downloadSong,playOrderedQueue}){
   const data=ARTISTS.find(a=>a.name===artist);
-  const artistAlbums=ALBUMS.filter(a=>a.artist?.toLowerCase()===artist?.toLowerCase() && a.type==="album").map(a=>({...a,songs:(a.trackIds||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean)}));
-  const artistSingles=ALBUMS.filter(a=>a.artist?.toLowerCase()===artist?.toLowerCase() && a.type==="single").map(a=>({...a,songs:(a.trackIds||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean)}));
+  const artistAlbums=ALBUMS_WITH_ASSETS.filter(a=>a.artist?.toLowerCase()===artist?.toLowerCase() && a.type==="album").map(a=>({...a,songs:(a.trackIds||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean)}));
+  const artistSingles=ALBUMS_WITH_ASSETS.filter(a=>a.artist?.toLowerCase()===artist?.toLowerCase() && a.type==="single").map(a=>({...a,songs:(a.trackIds||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean)}));
   const artistAlbumTrackIds=new Set(artistAlbums.flatMap(a=>a.trackIds||[]));
   const artistSingleTrackIds=new Set(artistSingles.flatMap(a=>a.trackIds||[]));
   const isSiennaSpiro=artist?.toLowerCase()==="sienna spiro";
@@ -2725,9 +2727,10 @@ function Stat({icon:I,value,label}){return <div className="stat"><I size={19}/><
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register(assetUrl("/sw.js")).catch(() => {});
   });
 }
 
 const appPath=window.location.pathname.replace(/\/+$/g,"")||"/";
-createRoot(document.getElementById("root")).render(appPath==="/app"?<App/>:<DevelopmentPreview/>);
+const isDesktop=window.location.protocol==="file:";
+createRoot(document.getElementById("root")).render(isDesktop||appPath==="/app"?<App/>:<DevelopmentPreview/>);

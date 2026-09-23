@@ -27,7 +27,7 @@ git push origin v8.1.0
 Set this Cloudflare Pages environment variable to the repository's stable latest-release URL, then redeploy the site:
 
 ```text
-VITE_WINDOWS_DOWNLOAD_URL=https://github.com/remixhubbb-ux/deluxe-tunes/releases/latest/download/Deluxe-Tunes-Setup.exe
+VITE_WINDOWS_DOWNLOAD_URL=https://github.com/remixhubbb-ux/deluxe-tunes/releases/download/v8.1.0/Deluxe-Tunes-Setup.exe
 ```
 
 The public preview will then show a **Download for Windows** button. Android and iOS builds use their existing scripts and are not changed by this workflow.
