@@ -1,0 +1,65 @@
+{
+  "name": "deluxe-tunes",
+  "private": true,
+  "version": "8.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:coming-soon": "vite --mode coming-soon",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios",
+    "android:build": "npm run build && npx cap sync android",
+    "android:apk": "npm run android:build && cd android && gradlew.bat assembleDebug",
+    "android:aab": "npm run android:build && cd android && gradlew.bat bundleRelease",
+    "ios:build": "npm run build && npx cap sync ios",
+    "build:coming-soon": "vite build --mode coming-soon",
+    "android:coming-soon": "npm run build:coming-soon && npx cap sync android",
+    "ios:coming-soon": "npm run build:coming-soon && npx cap sync ios",
+    "desktop:build": "npm run build",
+    "desktop:dist": "npm run desktop:build && electron-builder --win",
+    "server": "node server.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.468.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "discord-rpc": "^4.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0",
+    "typescript": "^5.6.3"
+  },
+  "description": "Ultra-polished local-first music player with real bundled WAV playback",
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.deluxetunes.desktop",
+    "productName": "Deluxe Tunes",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/main.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "Deluxe-Tunes-Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

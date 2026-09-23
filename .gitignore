@@ -1,0 +1,14 @@
+node_modules/
+dist/
+android.incomplete-backup/
+.env
+.env.*
+!.env.example
+
+data/discord-auth.json
+data/spotify-auth.json
+
+android/app/build/
+dist/
+android.incomplete-backup/
+ios/App/App/public/
