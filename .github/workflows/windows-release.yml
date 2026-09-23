@@ -32,6 +32,7 @@ jobs:
       - name: Publish installer to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v8.1.0
           files: release/Deluxe-Tunes-Setup.exe
           generate_release_notes: true
           fail_on_unmatched_files: true
