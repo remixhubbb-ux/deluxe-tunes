@@ -49,6 +49,42 @@ function logSpotifyError(context, error, extra = {}) {
   });
 }
 
+function truncateText(value, maxLen = 220) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
+}
+
+async function parseSpotifyJsonResponse(response, context, { fallbackValue = {} } = {}) {
+  const text = await response.text();
+  const contentType = response.headers.get('content-type') || 'unknown';
+  const preview = truncateText(text);
+  console.log(`[Spotify] ${context} response`, {
+    status: response.status,
+    contentType,
+    bodyPreview: preview,
+    bodyLength: text.length,
+  });
+  if (!text) return fallbackValue;
+  const trimmed = text.trim();
+  const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+  if (!looksLikeJson && !contentType.includes('application/json')) {
+    return { __nonJson: true, raw: preview, contentType, status: response.status };
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    console.error('[Spotify] JSON parse failed', {
+      context,
+      status: response.status,
+      contentType,
+      bodyPreview: preview,
+      errorMessage: error?.message || 'Unknown JSON parse error',
+    });
+    return { __nonJson: true, raw: preview, contentType, status: response.status };
+  }
+}
+
 async function spotifyApi(pathname, token, init = {}){
   let urlString = pathname;
   if (urlString.startsWith('http://') || urlString.startsWith('https://')) {
@@ -95,8 +131,11 @@ async function refreshSpotifyTokenIfNeeded(){
   const needsRefresh = Date.now() + 60000 >= spotifyAuth.expiresAt;
   if(!needsRefresh) return spotifyAuth.accessToken;
   const tokenRes=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:spotifyAuth.refreshToken,client_id:process.env.SPOTIFY_CLIENT_ID || ''})});
-  const token=await tokenRes.json().catch(()=>({}));
-  if(!tokenRes.ok || !token.access_token) throw new Error(token?.error_description||token?.error||'Spotify token refresh failed.');
+  const token = await parseSpotifyJsonResponse(tokenRes, 'token refresh');
+  if(!tokenRes.ok || !token.access_token) {
+    const errorMessage = token?.error_description || token?.error || (token?.raw ? `Spotify token refresh failed (${tokenRes.status}): ${token.raw}` : `Spotify token refresh failed (${tokenRes.status})`);
+    throw new Error(errorMessage);
+  }
   const scopes = Array.isArray(token.scope ? token.scope.split(' ') : []) ? token.scope.split(' ') : (spotifyAuth?.scopes || []);
   spotifyAuth={...spotifyAuth,accessToken:token.access_token,expiresAt:Date.now()+(Number(token.expires_in)||3600)*1000,scopes};
   await writeSpotifySession(spotifyAuth);
@@ -541,17 +580,29 @@ const server=http.createServer(async (req,res)=>{
       });
       console.log('[Spotify] exchanging code', { redirectUri: SPOTIFY_REDIRECT_URI, state: state || null, hasVerifier: Boolean(pending.verifier) });
       const tokenRes=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},body:tokenBody});
-      const token=await tokenRes.json().catch(()=>({}));
+      const token = await parseSpotifyJsonResponse(tokenRes, 'token exchange');
+      if (token?.__nonJson) {
+        const message = `Spotify token exchange returned non-JSON content (${tokenRes.status}, ${tokenRes.headers.get('content-type') || 'unknown'}).`;
+        console.error('[Spotify] token exchange failed', { status: tokenRes.status, body: token, redirectUri: SPOTIFY_REDIRECT_URI, state: state || null, contentType: tokenRes.headers.get('content-type') || 'unknown' });
+        throw new Error(message);
+      }
       if(!tokenRes.ok){
-        console.error('[Spotify] token exchange failed', { status: tokenRes.status, body: token, redirectUri: SPOTIFY_REDIRECT_URI, state: state || null });
-        throw new Error(token?.error_description||token?.error||`Token exchange failed (${tokenRes.status})`);
+        const message = token?.error_description || token?.error || (token?.raw ? `Token exchange failed (${tokenRes.status}): ${token.raw}` : `Token exchange failed (${tokenRes.status})`);
+        console.error('[Spotify] token exchange failed', { status: tokenRes.status, body: token, redirectUri: SPOTIFY_REDIRECT_URI, state: state || null, contentType: tokenRes.headers.get('content-type') || 'unknown' });
+        throw new Error(message);
       }
       const profileRes=await fetch('https://api.spotify.com/v1/me',{headers:{Authorization:`Bearer ${token.access_token}`, Accept:'application/json'}});
-      const profileText = await profileRes.text();
-      const user = profileText ? JSON.parse(profileText) : {};
+      const profilePayload = await parseSpotifyJsonResponse(profileRes, 'profile lookup');
+      if (profilePayload?.__nonJson) {
+        const message = `Spotify profile response was not valid JSON (${profileRes.status}, ${profileRes.headers.get('content-type') || 'unknown'}).`;
+        console.error('[Spotify] profile lookup failed', { status: profileRes.status, contentType: profileRes.headers.get('content-type') || 'unknown', responseBody: profilePayload, redirectUri: SPOTIFY_REDIRECT_URI, scopes: ['user-read-email','user-read-private','playlist-read-private','playlist-read-collaborative'] });
+        throw new Error(message);
+      }
+      const user = profilePayload || {};
       if(!profileRes.ok){
-        console.error('[Spotify] profile lookup failed', { status: profileRes.status, responseBody: profileText, redirectUri: SPOTIFY_REDIRECT_URI, scopes: ['user-read-email','user-read-private','playlist-read-private','playlist-read-collaborative'] });
-        throw new Error(user?.error?.message || `Profile lookup failed (${profileRes.status})`);
+        const message = user?.error?.message || (profilePayload?.raw ? `Profile lookup failed (${profileRes.status}): ${profilePayload.raw}` : `Profile lookup failed (${profileRes.status})`);
+        console.error('[Spotify] profile lookup failed', { status: profileRes.status, contentType: profileRes.headers.get('content-type') || 'unknown', responseBody: profilePayload, redirectUri: SPOTIFY_REDIRECT_URI, scopes: ['user-read-email','user-read-private','playlist-read-private','playlist-read-collaborative'] });
+        throw new Error(message);
       }
       const scopes = (token.scope || '').split(' ').filter(Boolean);
       spotifyAuth={user,accessToken:token.access_token,refreshToken:token.refresh_token,expiresAt:Date.now()+(Number(token.expires_in)||3600)*1000,scopes};
