@@ -130,7 +130,15 @@ async function refreshSpotifyTokenIfNeeded(){
   if(!spotifyAuth) return null;
   const needsRefresh = Date.now() + 60000 >= spotifyAuth.expiresAt;
   if(!needsRefresh) return spotifyAuth.accessToken;
-  const tokenRes=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:spotifyAuth.refreshToken,client_id:process.env.SPOTIFY_CLIENT_ID || ''})});
+  const refreshBody = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: spotifyAuth.refreshToken,
+    client_id: process.env.SPOTIFY_CLIENT_ID || '',
+  });
+  if (process.env.SPOTIFY_CLIENT_SECRET) {
+    refreshBody.set('client_secret', process.env.SPOTIFY_CLIENT_SECRET);
+  }
+  const tokenRes=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},body:refreshBody});
   const token = await parseSpotifyJsonResponse(tokenRes, 'token refresh');
   if(!tokenRes.ok || !token.access_token) {
     const errorMessage = token?.error_description || token?.error || (token?.raw ? `Spotify token refresh failed (${tokenRes.status}): ${token.raw}` : `Spotify token refresh failed (${tokenRes.status})`);
@@ -578,7 +586,10 @@ const server=http.createServer(async (req,res)=>{
         redirect_uri: SPOTIFY_REDIRECT_URI,
         code_verifier: pending.verifier,
       });
-      console.log('[Spotify] exchanging code', { redirectUri: SPOTIFY_REDIRECT_URI, state: state || null, hasVerifier: Boolean(pending.verifier) });
+      if (process.env.SPOTIFY_CLIENT_SECRET) {
+        tokenBody.set('client_secret', process.env.SPOTIFY_CLIENT_SECRET);
+      }
+      console.log('[Spotify] exchanging code', { redirectUri: SPOTIFY_REDIRECT_URI, state: state || null, hasVerifier: Boolean(pending.verifier), clientIdConfigured: Boolean(clientId) });
       const tokenRes=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},body:tokenBody});
       const token = await parseSpotifyJsonResponse(tokenRes, 'token exchange');
       if (token?.__nonJson) {
@@ -591,7 +602,13 @@ const server=http.createServer(async (req,res)=>{
         console.error('[Spotify] token exchange failed', { status: tokenRes.status, body: token, redirectUri: SPOTIFY_REDIRECT_URI, state: state || null, contentType: tokenRes.headers.get('content-type') || 'unknown' });
         throw new Error(message);
       }
-      const profileRes=await fetch('https://api.spotify.com/v1/me',{headers:{Authorization:`Bearer ${token.access_token}`, Accept:'application/json'}});
+      const accessToken = String(token.access_token || '');
+      if (!accessToken) {
+        throw new Error('Spotify token exchange did not return an access token.');
+      }
+
+      console.log('[Spotify] profile request', { endpoint: 'https://api.spotify.com/v1/me', status: 'pending', hasAccessToken: Boolean(accessToken) });
+      const profileRes=await fetch('https://api.spotify.com/v1/me',{headers:{Authorization:`Bearer ${accessToken}`, Accept:'application/json'}, method:'GET'});
       const profilePayload = await parseSpotifyJsonResponse(profileRes, 'profile lookup');
       if (profilePayload?.__nonJson) {
         const message = `Spotify profile response was not valid JSON (${profileRes.status}, ${profileRes.headers.get('content-type') || 'unknown'}).`;
