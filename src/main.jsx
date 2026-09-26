@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
+import packageJson from "../package.json";
 import {
   Home, Search, Library, ListMusic, BarChart3, Heart, Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Crown, Shuffle, Repeat2, Clock3,
@@ -9,6 +10,8 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import { matchSpotifyTrackToCatalog, normalizeSpotifyMatchText } from "./spotifyImport.js";
+import { calculateTasteProfile, canDownloadFromOrigin, isAppOnline, normalizePlaylistName, resolveAssetUrl } from "./appLogic.js";
+import { getLocalDateKey, getStreakMilestoneInfo, normalizeStreakState, updateStreakForListen } from "./streakLogic.js";
 
 let queueSongAction=()=>{};
 
@@ -158,6 +161,7 @@ const DEMOS = [
   {id:"clash-dave-stormzy",title:"Clash",artist:"Dave x Stormzy",album:"We’re All Alone In This Together",genre:"UK Rap",color:["#d13b79","#ef6d93"],bpm:0,file:"/audio/clash-dave-stormzy.mp3",length:251.87,artwork:"/images/clash-dave-stormzy.png",plays:303126185},
   {id:"location-dave-burna-boy",title:"Location",artist:"Dave feat. Burna Boy",album:"We’re All Alone In This Together",genre:"UK Rap",color:["#d13b79","#ef6d93"],bpm:0,file:"/audio/location-dave-burna-boy.mp3",length:234.2,artwork:"/images/location-dave-burna-boy.jpg",plays:736749144},
   {"id":"ufo-d-block-europe-aitch","title":"UFO","artist":"D-Block Europe x Aitch","album":"The Blueprint","genre":"UK Rap","color":["#0b4ea2","#4bc8ff"],"bpm":0,"file":"/audio/ufo-d-block-europe-aitch.mp3","length":204.04,"artwork":"/images/ufo-d-block-europe-aitch.png","plays":127433941},
+  {id:"barbarian-juice-wrld",title:"Barbarian",artist:"Juice WRLD",album:"Barbarian",genre:"Rap",color:["#3b0a0a","#ef4444"],bpm:0,file:"/audio/Barbarian - Juice Wrld.mp3",length:152.5,artwork:"/images/barbarian-juice-wrld.png",explicit:true,plays:35493413},
   {id:"sienna-the-visitor",title:"The Visitor",artist:"SIENNA SPIRO",album:"The Visitor",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/the-visitor-sienna-spiro.mp4",length:229,artwork:"/images/the-visitor-sienna-spiro.png",plays:170675732},
   {id:"this-is-my-house-sienna-spiro",title:"This Is My House",artist:"SIENNA SPIRO",album:"Visitor (Deluxe)",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/This Is My House - sienna spiro.mp3",length:204,artwork:"/images/artist-sienna-spiro.jpg",plays:12391227},
   {id:"sienna-time-you-and-me",title:"Time, You & Me",artist:"SIENNA SPIRO",album:"Visitor (Deluxe)",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/Time, You & Me - sienna spiro.mp3",length:210,artwork:"/images/artist-sienna-spiro.jpg",plays:11525957},
@@ -242,6 +246,7 @@ const lyricTime = stamp => {
 };
 
 const LYRICS = {
+  "barbarian-juice-wrld": [[0.99,"Uh-huh (Uh-huh, uh-huh)"],[1.66,"Sipping codeine, in love with the medicine (Uh-huh, yeah)"],[5.21,"I need codeine, in love with the medicine (Yeah)"],[6.92,"I'ma sip till I get an impediment (Yeah)"],[8.49,"Ballin' hard, I think I need a letterman (Oh-oh)"],[11.31,"Uh-huh, uh (Let's go, let's go)"],[13.73,""] ,[13.73,"I need codeine, in love with the medicine (What else?)"],[15.42,"I'ma sip till I get an impediment (What else?)"],[17.16,"I'ma ball till they get me a letterman (What else?)"],[18.95,"At the door knockin', they better let me in (What else?)"],[20.55,"Scooby-Doo as a kid, I was meddlin' (What else?)"],[22.31,"Kobe Bryant, the Rock, I was handlin' (What the fuck else?)"],[23.92,"I won't fuck on a bitch if she scandalous (What the fuck else?)"],[25.59,"Tear this shit up, I'll show you what a vandal is (What the fuck else?)"],[27.44,"I'm a victim of father abandonment (On God)"],[29.15,"As a bastard, I had to go get this shit (On God)"],[30.90,"As a bastard, I glowed up, I'm rich as shit (On God)"],[32.36,"Stunt on a goofy ****, it's embarrassing (Yeah, yeah)"],[34.19,"Hit new Lenox, I'm finna Burberry it (On God)"],[35.87,"Fill a Louis bag with money, then bury it (On God)"],[37.54,"Catch a body, bag it up and I bury it (On God)"],[39.26,"**** is bitches, on they Tyler Perry shit (Yeah)"],[41.42,"Gotta expose 'em, yeah, yeah, yeah (Uh)"],[42.99,"Shoot and reload it, yeah, yeah, yeah (Uh-huh, grrah)"],[44.46,"He a ho and he know it, yeah, yeah, yeah (Yeah)"],[46.43,"So I had to show 'em, yeah, yeah, yeah (Yeah)"],[48.14,"Codeine, I'ma pour it, yeah, yeah, yeah (What else?)"],[49.67,"With these words, I'm a poet, yeah, yeah, yeah (What else?)"],[51.45,"These words, I'm a poet, poet (Yeah)"],[53.44,"Fuck all that talkin', let's do it (Yeah)"],[55.07,"I don't drink beer, but I brew 'em (Yeah)"],[56.85,"\"Homina-homina,\" when I fuck her"],[58.57,"Good brain but she stupid (Yeah)"],[60.24,"Raw dog with no rubber (Yeah)"],[61.55,"My **** say I'm fuckin' her stupid (Yeah)"],[63.70,"Guess I'm young and stupid (Yeah)"],[64.97,"After I nut, make her shuffle like Cupid (Yeah, what else?)"],[66.94,"Or an iPod switchin' up music, yeah"],[68.63,"I need codeine, in love with the medicine (What else?)"],[70.31,"I'ma sip till I get an impediment (What else?)"],[71.98,"I'ma ball till they get me a letterman (What else?)"],[73.73,"At the door knockin', they better let me in (What else?)"],[75.28,"Scooby-Doo as a kid, I was meddlin' (What else?)"],[77.21,"Kobe Bryant, the Rock, I was handlin' (What the fuck else?)"],[78.89,"I won't fuck on a bitch if she scandalous (What the fuck else?)"],[80.44,"Tear this shit up, I'll show you what a vandal is (What the fuck else?)"],[82.81,"I'm high off of the ground, clouds chasin' (For real)"],[86.04,"These hoes go around clout chasin' (For real)"],[89.37,"Perc and Molly mixed got my heart racing (Yeah)"],[92.85,"I don't think I'ma never come down from this (No, no, no, no)"],[95.84,"She wanna fuck with my team, she an animal (Yeah)"],[97.60,"Won't eat her out even though I'm a cannibal (Yeah)"],[99.09,"Her friend on the other hand, her friend is edible (Yeah)"],[100.92,"I ate her out and the pussy taste incredible (Yeah)"],[102.73,"Beat up the box like I'm Mr. Incredible (Yeah)"],[104.37,"Or maybe Mike Tyson, I'm Mr. Impeccable (Ya' dig?)"],[106.12,"I remember eating Ramen and Lunchables (Whew)"],[107.86,"Now I throw Ruth Chris' away like it's Lunchables (Rich)"],[109.58,"Magazine on the AK, it's bananas (Grrah)"],[111.20,"I got it for **** that don't mind their manners (Grrah)"],[112.94,"Pull up in that Phantom, feel like Danny Phantom (Skrrt)"],[114.54,"My drip super radical, it'll dismantle you (Yeah)"],[116.38,"She told me she wanna fuck on a **** (Uh)"],[118.24,"Don't ride on something that you cannot handle (Uh)"],[119.81,"Slurp this dick like soup, no Campbells (Uh)"],[121.62,"After that, pour up a four of the Fanta (Lean)"],[123.94,"I need codeine, in love with the medicine (What else?)"],[125.17,"I'ma sip till I get an impediment (What else?)"],[126.91,"I'ma ball till they get me a letterman (What else?)"],[128.65,"At the door knockin', they better let me in (What else?)"],[130.28,"Scooby-Doo as a kid, I was meddlin' (What else?)"],[132.01,"Kobe Bryant, the Rock, I was handlin' (What the fuck else?)"],[133.75,"I won't fuck on a bitch if she scandalous (What the fuck else?)"],[135.22,"Tear this shit up, I'll show you what a vandal is (What the fuck else?)"],[138.81,"Oh my god, he's gonna bring his girl out"],[142.45,"I heard he always brings her out at this part, this is so cute"],[147.46,"All my ladies, put your hands up right now!"]],
   "bella-kay-iloveitiloveitiloveit": [[7.51,"I like being used, it means I have a purpose"],[14.12,"It's the little things you do, at least you're being earnest"],[20.14,"Oh, maybe I'm too fragile, or maybe you're too mean"],[26.83,"I've never been real good at deciphering things"],[32.88,"Let's let fate decide"],[35.41,"Heads, we go to yours, tails, we go to mine"],[39.13,"You're a bad idea"],[42.52,"But a real good time"],[46.14,"Oh, and I'd be lying if I said I didn't love it 'cause I do"],[50.20,"I'm a couple minutes out from relapsing into you"],[53.38,"Oh, fuck it, baby, I love it"],[58.25,"I love it, I love it, I"],[60.46,"I love it when we fight, and I like it when you're mean"],[63.75,"We don't have to get into what that says about me"],[66.81,"Oh, shut it, baby, I love it"],[71.65,"I love it, I love it, I"],[74.67,"I could tell you the truth, but first, you've gotta earn it"],[80.97,"Don't gotta lasso the moon, just tell me that I'm perfect"],[87.18,"Oh, maybe I'm too easy, or maybe you're too hard"],[93.92,"I've always been real good at taking it too far"],[100.01,"Let's let fate decide"],[102.56,"Heads we go to yours, tails we go to mine"],[106.40,"You're a bad idea"],[109.61,"But a real good time"],[113.22,"Oh, and I'd be lying if I said I didn't love it 'cause I do"],[117.51,"I'm a couple minutes out from relapsing into you"],[120.52,"Oh, fuck it, baby, I love it"],[125.40,"I love it, I love it, I"],[127.60,"I love it when we fight, and I like it when you're mean"],[130.93,"We don't have to get into what that says about me"],[133.94,"Oh, shut it, baby, I love it"],[138.86,"I love it, I love it, I"],[141.20,"I'm a couple minutes out from relapsing"],[144.57,"Do you remember the last time this happened?"],[148.08,"Baby, relax, sometimes it happens"],[151.40,"Baby, relax, sometimes it happens"],[155.00,"I'm a couple minutes out from relapsing"],[158.16,"Is the key still under the mat?"],[161.11,"Can you imagine? The last time this happened"],[164.58,"I, I, I loved it, I loved it, I"],[167.58,"I'd be lying if I said I didn't love it 'cause I do"],[171.12,"I'm a couple minutes out from relapsing into you"],[174.22,"Oh, fuck it"],[177.04,"I only love it 'cause it's you"]],
   "ufo-d-block-europe-aitch": [[8.64,"Yeah, Cali weed, alcohol, I'm off my face again"],[11.48,"I took some Molly, now I'm lookin' like an alien"],[13.9,"I'll do you well, so well"],[16.42,"Let's do drugs before we fuck and fuck in space again (Ski)"],[18.84,""],[18.84,"Oh, my, I'm waved"],[21.22,"Too much, I don't know what to say"],[23.46,"I'll do you well, so well"],[25.93,"The girl bad, bad, she goin' through a phase"],[28.44,"Oh, I'm amazed"],[30.53,"Pretty pink toes, lookin' like the figure eight"],[33.06,"I'll treat you well, so well (So, so well)"],[35.62,"Young rich ****, really fuckin' paid (So well)"],[38.23,""],[38.04,"She a smart bad bitch, she be single all summer (All summer)"],[40.9,"But she'll bag a footballer for the winter (For the winter)"],[43.38,"Fuck the rap beef, thirty round drummer (Round drummer)"],[45.8,"We'll shoot your tour bus, shoot your Sprinter (Yeah)"],[47.5,"I gave some white to my white girl (Ski, ski)"],[49.9,"Me and my brown ting just blow trees (Ski, ski)"],[52.27,"Open my Louis bag, ooh-eee (Ski, ski)"],[54.7,"Open your mouth, darlin', force feed, ha"],[57.22,"I said, \"Baby, I'm a pro, your man a rookie\" (Rookie)"],[59.51,"You ever had a drug dealer eat your pussy? (Eat your pussy)"],[61.92,"You ever had a shot caller make you tap out?"],[64.1,"Argued with my **** cah he fuckin' left the MAC out, fool"],[67.14,"Cappin' on the net till you get stab out, ooh"],[69.55,"I'ma earn a slab out, 'bout to bust the pack down"],[71.94,"Can't afford a pat down, loud is full of ganja"],[74.02,"And I told him bring the money, mañana"],[76.82,""],[76.42,"Oh, my, I'm waved (Ski)"],[78.81,"Too much, I don't what to say (Ski, ski)"],[81.06,"I'll do you well, so well"],[83.54,"The girl bad, bad, she goin' through a phase (Ski, ski)"],[86.02,"Oh, I'm amazed"],[88.12,"Pretty pink toes, lookin' like the figure eight"],[90.66,"I'll treat you well, so well (So, so well)"],[93.2,"Young rich ****, really fuckin' paid (So, so well)"],[96.51,""],[96.14,"Colombiana, some big titties and slim waist (Aye)"],[98.6,"Bust it open in motion, don't make no mistakes"],[101.04,"I might lick it a little to see how it taste"],[103.41,"Finger fuck with my Rollie on, I got wrist ache"],[105.84,"Left the crib with a ripped up tee"],[107.72,"Paid racks for her tits, got her lips done cheap (Yeah)"],[110.5,"You roll with Aitch, you know the bill come free"],[112.44,"She don't fuck with white boys, but she still fuck me"],[114.72,"You ever had a millionaire eat your pussy? (Mmm)"],[117.26,"Let her flex the plain jane or wear the bussie (Alright)"],[119.52,"She popped a pill and told me, \"Fuck me till it's gushy\""],[121.79,"Asked me what my type is, I just told her, \"I ain't fussy\" (Uh-uh)"],[124.3,"She fucked with London till I brought her up to Manny (M-town)"],[126.84,"Got her squirtin' when I choke her, she a baddie (Aye, aye)"],[129.25,"I ain't beefin' with your ex, the boy a patty"],[131.07,"Got about two-hundred thousand pounds of jewellery in the taxi (Skrrt)"],[134.32,""],[134.05,"Oh, my, I'm waved (Ski)"],[136.43,"Too much, I don't what to say (Ski, ski)"],[138.7,"I'll do you well, so well"],[141.14,"The girl bad, bad, she goin' through a phase (Ski, ski, ski)"],[143.62,"Oh, I'm amazed"],[145.75,"Pretty pink toes, lookin' like the figure eight"],[148.27,"I treat you well, so well (So, so well)"],[150.81,"Young rich ****, really fuckin' paid (So, so, so well)"],[154.14,""],[152.62,"Yeah, I'ma cover my pain with these shades (Yeah)"],[155.68,"I'ma cover my eyes with Cartier"],[158.03,"And we never go to party 'cause my **** catch a body"],[160.47,"Girl, I'd rather smoke weed and chill and taste it (Skrrt, skrrt)"],[162.72,"I get you Dior for your trainers, but we never go on dates (Uh)"],[165.54,"Girl, wash your pussy 'fore I eat, I'm gonna wait (Uh)"],[167.62,"Two-thousand for my trainers, yes, I got them from LA"],[170.03,"Gave my dentist eight-thousand, told him \"Make my teeth straight\""],[172.43,"I'm lit, I'm high"],[174.8,"And I swear, I'll eat that pussy all night"],[177.22,"And I brought this codeine for the vibes"],[179.5,"I got a flight in couple hours, she said, \"One more time\" (Skrrt, skrrt)"],[182.77,""],[182.06,"Oh, my, I'm waved (Ski)"],[184.44,"Too much, I don't what to say (Ski, ski)"],[186.6,"I'll do you well, so well"],[189.12,"The girl bad, bad, she goin' through a phase (Ski, ski)"],[191.64,"Oh, I'm amazed"],[193.64,"Pretty pink toes, lookin' like the figure eight"],[196.28,"I'll treat you well, so well (So, so well)"],[198.8,"Young rich ****, really fuckin' paid (So, so, so well)"]],
   "sienna-the-visitor": [
@@ -1086,22 +1091,35 @@ LYRICS["only-thing-left-alex-warren"] = [
 
 LYRICS["sf-cypher-24"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
 
-const assetUrl=(value)=>value?.startsWith("/")?`${import.meta.env.BASE_URL}${value.slice(1)}`:value;
+const assetUrl=(value)=>resolveAssetUrl(value, typeof window !== "undefined" ? window.location.href : "");
 const ALBUMS_WITH_ASSETS=ALBUMS.map(album=>({...album,artwork:assetUrl(album.artwork)}));
 const INITIAL=DEMOS.map(d=>({...d,file:assetUrl(d.file),artwork:assetUrl(d.artwork),demo:true,duration:d.length,url:assetUrl(d.file)}));
 const SINGLE_SONG_IDS = new Set(ALBUMS_WITH_ASSETS.filter(album=>album.type==="single").flatMap(album=>album.trackIds||[]));
-const STORAGE_KEYS={likes:"dt5_likes",stats:"dt4_stats",sharedPlays:"dt5_shared_plays",livePlays:"dt8_live_plays",highPopularityPlaySchedule:"dt8_high_popularity_play_schedule",recent:"dt6_recent",searches:"dt6_searches",follows:"dt6_follows",playlists:"dt6_playlists",libraryAlbums:"dt7_library_albums",downloads:"dt7_downloads",theme:"dt6_theme",sleep:"dt6_sleep",account:"dt8_account",session:"dt8_session",discord:"dt8_discord",spotify:"dt8_spotify",spotifyProfile:"dt8_spotify_profile"};
+const STORAGE_KEYS={likes:"dt5_likes",stats:"dt4_stats",sharedPlays:"dt5_shared_plays",livePlays:"dt8_live_plays",highPopularityPlaySchedule:"dt8_high_popularity_play_schedule",recent:"dt6_recent",searches:"dt6_searches",follows:"dt6_follows",playlists:"dt6_playlists",libraryAlbums:"dt7_library_albums",downloads:"dt7_downloads",theme:"dt6_theme",sleep:"dt6_sleep",account:"dt8_account",session:"dt8_session",discord:"dt8_discord",spotify:"dt8_spotify",spotifyProfile:"dt8_spotify_profile",streak:"dt8_streak"};
 const SPOTIFY_IMPORT_DEMO={profile:{display_name:"Deluxe Listener",email:"spotify@deluxe.tunes",country:"UK"},playlists:[{name:"Night Drive",tracks:["bad-oneda","let-me-in-oneda","eternity-alex-warren"]},{name:"Late Night Cuts",tracks:["sienna-the-visitor","ufo-d-block-europe-aitch","rain-aitch-aj-tracey"]},{name:"Favourites",tracks:["major-pay-oneda-renee-stormz","clash-dave-stormzy","sienna-you-stole-the-show"]}],likedSongs:["ufo-d-block-europe-aitch","sienna-the-visitor","eternity-alex-warren","major-pay-oneda-renee-stormz"],history:["rain-aitch-aj-tracey","clash-dave-stormzy","sienna-you-stole-the-show","set-it-off-oneda","ufo-d-block-europe-aitch"]};
 const safeJSON=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||"null")??fallback}catch{return fallback}};
 const isHighPopularityTrack=(song)=>Number(song?.plays||0)>=100000000;
 const randomWhole=(min,max)=>Math.floor(Math.random()*(max-min+1))+min;
 const fmt=n=>{n=Math.max(0,Math.floor(n||0));return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`};
 const normalizeKey=(value)=>normalizeSpotifyMatchText(value);
-const WINDOWS_DOWNLOAD_URL=import.meta.env.VITE_WINDOWS_DOWNLOAD_URL||"https://github.com/remixhubbb-ux/deluxe-tunes/releases/download/v8.1.0/Deluxe-Tunes-Setup.exe";
+const WINDOWS_DOWNLOAD_URL=import.meta.env.VITE_WINDOWS_DOWNLOAD_URL||"https://github.com/remixhubbb-ux/deluxe-tunes/releases/download/v8.1.5/Deluxe-Tunes-Setup.exe";
+const APP_VERSION=packageJson.version;
+const UPDATE_PAGE_URL="https://deluxetunesapp.pages.dev";
+const LATEST_RELEASE_API="https://api.github.com/repos/remixhubbb-ux/deluxe-tunes/releases/latest";
+const isNewerVersion=(latest,current)=>{
+  const parse=value=>String(value||"").replace(/^v/i,"").split(".").map(part=>Number.parseInt(part,10)||0);
+  const latestParts=parse(latest); const currentParts=parse(current);
+  return latestParts.some((part,index)=>part>(currentParts[index]||0) || (part<(currentParts[index]||0) && latestParts.slice(0,index).every((item,i)=>item===currentParts[i])));
+};
 
 function Logo({compact=false}){return <div className={"logo "+(compact?"compact":"")}><img src={assetUrl("/logo.png")} alt="Deluxe Tunes"/></div>}
 
-function Cover({song,size=""}){return <div className={"coverArt "+size} style={{"--a":song.color?.[0]||"#7c3aed","--b":song.color?.[1]||"#06b6d4"}}>{song.artwork ? <img className="coverImage" src={song.artwork} alt="" /> : null}
+function UpdateNotice(){
+  const openUpdatePage=()=>window.open(UPDATE_PAGE_URL,"_blank","noopener,noreferrer");
+  return <div className="updateNotice" role="status"><button className="updateNoticeLink" onClick={openUpdatePage}><span><Sparkles size={15}/> NEW UPDATE AVAILABLE</span><small>Get the latest Deluxe Tunes <ChevronRight size={15}/></small></button></div>;
+}
+
+function Cover({song,size=""}){return <div className={"coverArt "+size} style={{"--a":song.color?.[0]||"#7c3aed","--b":song.color?.[1]||"#06b6d4"}}>{song.artwork ? <img className="coverImage" src={assetUrl(song.artwork)} alt="" /> : null}
   <div className="coverGlow"/>{!song.artwork&&<div className="coverInitial">{song.title?.slice(0,1)}</div>}</div>}
 
 function DevelopmentPreview(){
@@ -1115,7 +1133,7 @@ function DevelopmentPreview(){
       <h1>We're still building<br/><em>the signal.</em></h1>
       <p className="developmentLead">A more thoughtful place for your music is taking shape. The public build is currently <strong>25% complete</strong>.</p>
       <div className="developmentProgress" aria-label="25 percent complete"><div><span>BUILD PROGRESS</span><b>25%</b></div><div className="developmentProgressTrack"><i/></div></div>
-      <div className="developmentMeta"><div><span>AVAILABLE SONGS</span><b>{INITIAL.length}</b></div><div><span>RELEASE STATUS</span><b>IN EARLY DEVELOPMENT</b></div><div><span>VERSION</span><b>v8.1</b></div></div>
+      <div className="developmentMeta"><div><span>AVAILABLE SONGS</span><b>{INITIAL.length}</b></div><div><span>RELEASE STATUS</span><b>IN EARLY DEVELOPMENT</b></div><div><span>VERSION</span><b>v8.1.5</b></div></div>
       <p className="developmentNote"><Sparkles size={15}/> Some songs and features aren't available yet.</p>
       <p className="developmentDisclaimer" style={{borderLeft:"2px solid var(--lime)",padding:"12px 14px",background:"rgba(183,255,60,.07)",color:"#b9c8c7",fontWeight:600,lineHeight:1.7}}>Some features may not work or may look different depending on the device you use. Google sign-in has not been configured properly yet. We are more focused on getting this app out to you guys.<br/><strong style={{color:"var(--lime)",display:"inline-block",marginTop:"5px"}}>— Deluxe Team</strong></p>
       <p style={{maxWidth:"570px",color:"#7f9092",fontSize:"10px",lineHeight:1.65,margin:"0 0 24px"}}><strong style={{color:"#d6e4e1"}}>An account is required to enter.</strong> The only way to make an account is through the app's <strong style={{color:"#d6e4e1"}}>Create account</strong> feature. Don't worry, you can edit your account at any time. If you can't update it now, you can do so later once your device has fully updated to the latest software.</p>
@@ -1125,7 +1143,7 @@ function DevelopmentPreview(){
         {WINDOWS_DOWNLOAD_URL&&<a className="developmentDownload" href={WINDOWS_DOWNLOAD_URL}><Download size={15}/> DOWNLOAD FOR WINDOWS</a>}
       </div>
     </section>
-    <footer className="developmentFooter"><span>LOCAL MUSIC EXPERIENCE</span><span>DELUXE TUNES v8.1 / BUILD 06</span></footer>
+    <footer className="developmentFooter"><span>LOCAL MUSIC EXPERIENCE</span><span>DELUXE TUNES v8.1.5 / BUILD 07</span></footer>
   </main>
 }
 
@@ -1232,8 +1250,60 @@ function AccountGate({onAuthenticated}){
   </form><button className="authSwitch" onClick={()=>{setMode(mode==="signup"?"signin":"signup");setError("")}}>{mode==="signup"?"Already have an account? Sign in":"New to Deluxe Tunes? Create an account"}</button><div className="authFoot"><ShieldCheck size={14}/> Your local account data stays on this device in this offline build.</div></div></div>
 }
 
-const API_BASE = window.location.origin;
+const resolveApiBase = () => {
+  const runtimeBase = typeof window !== 'undefined' && (
+    window.__DT_API_BASE__ ||
+    window.__DT_OAUTH_BASE__ ||
+    window.__DT_CONFIG__?.apiBaseUrl ||
+    window.__DT_CONFIG__?.oauthBaseUrl ||
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_OAUTH_BASE_URL ||
+    import.meta.env.VITE_APP_ORIGIN ||
+    ''
+  );
+
+  if (runtimeBase) return String(runtimeBase).replace(/\/+$/, '');
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (origin && origin !== 'null' && !origin.startsWith('file:')) return origin;
+
+  if (typeof window !== 'undefined' && window.location.hostname && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:8787';
+  }
+
+  return 'https://deluxe-tunes-api.onrender.com';
+};
+const API_BASE = resolveApiBase();
 const BACKEND_ENABLED = true;
+
+function openAuthWindow(url, title = 'deluxeTunesAuth') {
+  if (window.electronAPI?.openExternal) {
+    try {
+      window.electronAPI.openExternal(url);
+      return { external: true, closed: false, title };
+    } catch (error) {
+      console.warn('External browser auth launch failed.', error);
+    }
+  }
+
+  const features = 'width=520,height=760,noopener,noreferrer';
+  try {
+    const popup = window.open(url, title, features);
+    if (popup && !popup.closed) return popup;
+  } catch (error) {
+    console.warn('Authentication popup was blocked.', error);
+  }
+
+  try {
+    const fallback = window.open(url, '_blank', features);
+    if (fallback && !fallback.closed) return fallback;
+  } catch (error) {
+    console.warn('Authentication fallback popup was blocked.', error);
+  }
+
+  window.location.assign(url);
+  return null;
+}
 
 function App(){
   const audio=useRef(null);
@@ -1258,6 +1328,7 @@ function App(){
   const [playlists,setPlaylists]=useState(()=>safeJSON(STORAGE_KEYS.playlists,[]));
   const [libraryAlbums,setLibraryAlbums]=useState(()=>safeJSON(STORAGE_KEYS.libraryAlbums,[]));
   const [downloads,setDownloads]=useState(()=>safeJSON(STORAGE_KEYS.downloads,[]));
+  const [streak,setStreak]=useState(()=>normalizeStreakState(safeJSON(STORAGE_KEYS.streak,null)));
   const [selectedPlaylist,setSelectedPlaylist]=useState(null);
   const playlistsRef=useRef(playlists);
   useEffect(()=>{playlistsRef.current=playlists},[playlists]);
@@ -1269,6 +1340,7 @@ function App(){
   const [focusMode,setFocusMode]=useState(false);
   const [sleepTimer,setSleepTimer]=useState(null);
   const [settingsOpen,setSettingsOpen]=useState(false);
+  const [updateAvailable,setUpdateAvailable]=useState(false);
   const [current,setCurrent]=useState(null),[playing,setPlaying]=useState(false),[position,setPosition]=useState(0),[duration,setDuration]=useState(0);
   const [volume,setVolume]=useState(.78),[query,setQuery]=useState(""),[page,setPage]=useState("home");
   const [toast,setToast]=useState(""),[shuffle,setShuffle]=useState(false),[repeat,setRepeat]=useState(false),[showLyrics,setShowLyrics]=useState(false),[selectedArtist,setSelectedArtist]=useState(null),[selectedAlbum,setSelectedAlbum]=useState(null),[playbackReturnAlbum,setPlaybackReturnAlbum]=useState(null),[libraryTab,setLibraryTab]=useState("playlists"),[previousPage,setPreviousPage]=useState("home");
@@ -1295,7 +1367,16 @@ function App(){
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.playlists,JSON.stringify(playlists)),[playlists]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.libraryAlbums,JSON.stringify(libraryAlbums)),[libraryAlbums]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.downloads,JSON.stringify(downloads)),[downloads]);
+  useEffect(()=>localStorage.setItem(STORAGE_KEYS.streak,JSON.stringify(streak)),[streak]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.theme,JSON.stringify(theme)),[theme]);
+  useEffect(()=>{
+    let cancelled=false;
+    fetch(LATEST_RELEASE_API,{headers:{Accept:"application/vnd.github+json"}})
+      .then(response=>response.ok?response.json():null)
+      .then(release=>{if(!cancelled && isNewerVersion(release?.tag_name,APP_VERSION)) setUpdateAvailable(true)})
+      .catch(()=>{});
+    return ()=>{cancelled=true};
+  },[]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.discord,JSON.stringify(discordConnected)),[discordConnected]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.spotify,JSON.stringify(spotifyConnected)),[spotifyConnected]);
   useEffect(()=>{
@@ -1304,12 +1385,35 @@ function App(){
   },[spotifyProfile]);
   useEffect(()=>{
     if(!discordConnected || !discordAuth){ return; }
-    if(!current){ return; }
-    const payload={details:playing?`Listening to ${current.title}`:`Paused • ${current.title}`,state:`${current.artist} • Deluxe Tunes`,largeImageKey:"music-note",largeImageText:"Deluxe Tunes",startedAt:appSessionStartedAt.current};
-    const bridge=window.DeluxeTunesDiscord;
-    if(bridge?.setPresence) { bridge.setPresence(payload); return; }
-    fetch("/api/discord/presence",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(()=>{});
-  },[current,playing,discordConnected,discordAuth]);
+    const positionSeconds = Number.isFinite(position) ? Math.max(0, position) : 0;
+    const durationSeconds = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+    const playbackStartedAt = Date.now() - (positionSeconds * 1000);
+    const playbackEndedAt = current && durationSeconds > 0 ? Date.now() + Math.max((durationSeconds - positionSeconds), 0) * 1000 : undefined;
+    const payload = current ? {
+      details: current.title || "Deluxe Tunes",
+      state: playing ? "Listening on Deluxe Tunes" : "Paused • Deluxe Tunes",
+      largeImageKey: "deluxetunes",
+      largeImageText: "Deluxe Tunes",
+      smallImageKey: "deluxe_tunes",
+      smallImageText: "Deluxe Tunes",
+      startedAt: playbackStartedAt,
+      endedAt: playbackEndedAt,
+    } : {
+      details: "Deluxe Tunes",
+      state: "Not playing",
+      largeImageKey: "deluxetunes",
+      largeImageText: "Deluxe Tunes",
+      smallImageKey: "deluxe_tunes",
+      smallImageText: "Deluxe Tunes",
+      startedAt: Date.now(),
+    };
+    const bridge = window.DeluxeTunesDiscord;
+    if (bridge?.setPresence) {
+      bridge.setPresence(payload);
+      return;
+    }
+    if (window.electronAPI?.isElectron) return;
+  },[current,playing,position,duration,discordConnected,discordAuth]);
 
   useEffect(()=>{
     if(!BACKEND_ENABLED) return;
@@ -1326,8 +1430,19 @@ function App(){
     }).catch(()=>{});
   },[]);
   useEffect(()=>{
+    const allowedOrigins = new Set([
+      window.location.origin,
+      'null',
+      'http://localhost:8787',
+      'http://127.0.0.1:8787',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://deluxe-tunes-api.onrender.com',
+      'https://api.deluxetunes.app',
+      new URL(API_BASE).origin,
+    ]);
     const onDiscordMessage=(event)=>{
-      if(event.origin!==window.location.origin || event.data?.type!=="deluxe-discord-auth") return;
+      if(!allowedOrigins.has(event.origin) || event.data?.type!=="deluxe-discord-auth") return;
       if(event.data.ok){
         fetch(`${API_BASE}/api/discord/status`).then(r=>r.json()).then(data=>{
           if(data?.authenticated){setDiscordAuth(data.user||null);setDiscordConnected(true);localStorage.setItem("dt8_discord_auth",JSON.stringify(data.user||null));}
@@ -1335,7 +1450,7 @@ function App(){
       }
     };
     const onSpotifyMessage=(event)=>{
-      if(event.origin!==window.location.origin || event.data?.type!=="deluxe-spotify-auth") return;
+      if(!allowedOrigins.has(event.origin) || event.data?.type!=="deluxe-spotify-auth") return;
       if(event.data.ok){
         const user = event.data.user || null;
         setSpotifyProfile(user);
@@ -1368,6 +1483,19 @@ function App(){
 
   const totalSeconds=Object.values(stats).reduce((a,s)=>a+(s.seconds||0),0);
   const totalPlays=Object.values(stats).reduce((a,s)=>a+(s.plays||0),0)+Object.values(livePlays).reduce((a,v)=>a+v,0);
+  const streakMilestoneInfo=getStreakMilestoneInfo(streak.current);
+  const streakHistory=(Array.isArray(streak.history)?streak.history:[]).slice(0,4);
+  const streakCalendar = useMemo(()=>{
+    const cells = [];
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - 34);
+    for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+      const key = getLocalDateKey(cursor);
+      cells.push({ key, active: streak.days.includes(key) });
+    }
+    return cells;
+  }, [streak.days]);
   const topSongs=useMemo(()=>[...songs].sort((a,b)=>getEffectivePlayCount(b,stats,livePlays)-getEffectivePlayCount(a,stats,livePlays)).slice(0,5),[songs,stats,livePlays]);
   const albumRecords=useMemo(()=>{
     const orderedAlbumSongs=(album, songList)=>{
@@ -1433,6 +1561,28 @@ function App(){
   },[current,repeat,shuffle,songs]);
 
   function notify(t){setToast(t);clearTimeout(window.__dtToast);window.__dtToast=setTimeout(()=>setToast(""),2100)}
+
+  const streakDayRef=useRef(null);
+  useEffect(()=>{
+    const a=audio.current;
+    if(!a) return;
+    const onTimeUpdate=()=>{
+      if(!current || a.currentTime < 20) return;
+      const dayKey=getLocalDateKey();
+      if(streakDayRef.current===dayKey) return;
+      streakDayRef.current=dayKey;
+      setStreak(prev=>{
+        const next = updateStreakForListen(prev, new Date());
+        if (next.triggeredMilestones.length) {
+          const milestone = next.triggeredMilestones[0];
+          notify(`🔥 ${milestone} DAY STREAK • You\'ve listened to Deluxe Tunes for ${milestone} consecutive days.`);
+        }
+        return next.state;
+      });
+    };
+    a.addEventListener("timeupdate",onTimeUpdate);
+    return()=>a.removeEventListener("timeupdate",onTimeUpdate);
+  },[current]);
 
   function recordUniversalPlay(song){
     // Keep play statistics fully local so playback and stats work without a network.
@@ -1534,7 +1684,22 @@ function App(){
     setLibraryAlbums(v=>v.includes(album.id)?v.filter(id=>id!==album.id):[...v,album.id]);
     notify(libraryAlbums.includes(album.id)?"Removed from Library":"Added to Library");
   }
-  function addPlaylist(){const name=window.prompt("Playlist name"); if(!name?.trim())return; setPlaylists(p=>[...p,{id:Date.now(),name:name.trim(),songs:[]}]);notify("Playlist created")}
+  function addPlaylist(){
+    const input = window.prompt("Playlist name");
+    const name = normalizePlaylistName(input);
+    if (!name) {
+      notify("Playlist name cannot be empty.");
+      return;
+    }
+    if (playlists.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      notify("You already have a playlist with that name.");
+      return;
+    }
+    const nextPlaylist = { id: `playlist-${Date.now()}`, name, songs: [] };
+    setPlaylists(p => [nextPlaylist, ...p]);
+    setSelectedPlaylist(nextPlaylist);
+    notify("Playlist created");
+  }
   function addToPlaylist(song,playlistId){
     if(!song)return;
     if(!playlistId){setPlaylistPickerSong(song);return;}
@@ -1553,6 +1718,12 @@ function App(){
       setDownloads(v=>v.filter(id=>id!==song.id)); notify("Removed from Downloads"); return;
     }
     try{
+      const isOnline = await isAppOnline();
+      const isDownloadAllowed = canDownloadFromOrigin(resolvedUrl, isOnline, window.location.protocol);
+      if(!isDownloadAllowed){
+        notify("Download is unavailable because this device is offline right now.");
+        return;
+      }
       if("caches" in window){const cache=await caches.open("deluxe-tunes-offline-v1"); const response=await fetch(resolvedUrl); if(!response.ok)throw new Error("download failed"); await cache.put(resolvedUrl,response.clone());}
       setDownloads(v=>v.includes(song.id)?v:[...v,song.id]); notify("Downloaded for offline playback");
     }catch(err){console.error(err);notify("Download failed. Try again while online.");}
@@ -1869,7 +2040,7 @@ function App(){
       <div className="navGroup">{nav.map(([id,label,I])=><button className={page===id?"nav active":"nav"} onClick={()=>goPage(id)} key={id}><I size={19}/><span>{label}</span></button>)}</div>
       <div className="sideFooter">
         <a href="https://mail.google.com/mail/?view=cm&fs=1&to=deluxe.tuness@gmail.com" target="_blank" rel="noreferrer"><Mail size={15}/><span>Contact support</span></a>
-        <small>Deluxe Tunes v8.1</small>
+        <small>Deluxe Tunes v8.1.5</small>
       </div>
     </aside>
 
@@ -1877,6 +2048,7 @@ function App(){
       {page!=="search"&&<div className="topbarSpacer"/>}
       <div className="headerActions"><button className="avatar accountAvatar" onClick={()=>setSettingsOpen(true)} aria-label="Open account and settings">{account.avatar?<img src={account.avatar} alt=""/>:String(account.nickname||"DT").slice(0,2).toUpperCase()}</button></div>
     </header>
+      {page==="home"&&updateAvailable&&<UpdateNotice/>}
       {page==="home"&&<HomePage current={current} songs={songs} topSongs={topSongs} recentSongs={recentlyPlayedSongs} likes={likes} play={playSong} playAlbum={playAlbum} like={toggleLike} addToPlaylist={addToPlaylist} downloadSong={downloadSong} downloads={downloads} goStats={()=>goPage("stats")} goSearch={()=>goPage("search")} openArtist={openArtist} openAlbum={openAlbum} follows={follows}/>} 
       {page==="search"&&<SearchPage songs={filtered} artists={filteredArtists} likes={likes} play={playSong} like={toggleLike} query={query} setQuery={setQuery} back={mobileBack} openArtist={openArtist} recentSearches={recentSearches} setRecentSearches={setRecentSearches} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
       {page==="library"&&<LibraryPage songs={songs} albums={albumRecords} libraryAlbums={libraryAlbums} toggleAlbumLibrary={toggleAlbumLibrary} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong} tab={libraryTab} setTab={setLibraryTab} openArtist={openArtist} openAlbum={openAlbum} playlists={playlists} addPlaylist={addPlaylist} openPlaylist={openPlaylist} editPlaylist={editPlaylist} deletePlaylist={deletePlaylist} follows={follows}/>} 
@@ -1948,7 +2120,7 @@ function App(){
 
     {queueOpen&&<QueuePanel songs={songs} queueSongs={queueSongs} current={current} likes={likes} like={toggleLike} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong} onClose={()=>setQueueOpen(false)} removeFromQueue={removeFromQueue} moveQueue={moveQueue} addToQueue={addToQueue} play={playSong} clearQueue={clearQueue}/>} 
     {playlistPickerSong&&<PlaylistPicker song={playlistPickerSong} playlists={playlists} addPlaylist={addPlaylist} addToPlaylist={addToPlaylist} onClose={()=>setPlaylistPickerSong(null)}/>}
-    {settingsOpen&&<SettingsPanel account={account} setAccount={setAccount} theme={theme} setTheme={setTheme} discordConnected={discordConnected} setDiscordConnected={setDiscordConnected} discordAuth={discordAuth} setDiscordAuth={setDiscordAuth} spotifyConnected={spotifyConnected} setSpotifyConnected={setSpotifyConnected} spotifyProfile={spotifyProfile} setSpotifyProfile={setSpotifyProfile} spotifyAuthState={spotifyAuthState} setSpotifyAuthState={setSpotifyAuthState} matchSongFromSpotify={matchSongFromSpotify} extractSpotifyTrackFromEntry={extractSpotifyTrackFromEntry} onImportSpotifyPlaylists={importSpotifyPlaylists} onImportSpotifyLikedSongs={importSpotifyLikedSongs} onImportSpotifyHistory={importSpotifyHistory} onImportSpotifyPlaylist={importSpotifyPlaylist} onSignOut={signOut} onClose={()=>setSettingsOpen(false)} sleepTimer={sleepTimer} setSleepTimer={setSleepTimer}/>}
+    {settingsOpen&&<SettingsPanel account={account} setAccount={setAccount} theme={theme} setTheme={setTheme} discordConnected={discordConnected} setDiscordConnected={setDiscordConnected} discordAuth={discordAuth} setDiscordAuth={setDiscordAuth} spotifyConnected={spotifyConnected} setSpotifyConnected={setSpotifyConnected} spotifyProfile={spotifyProfile} setSpotifyProfile={setSpotifyProfile} spotifyAuthState={spotifyAuthState} setSpotifyAuthState={setSpotifyAuthState} matchSongFromSpotify={matchSongFromSpotify} extractSpotifyTrackFromEntry={extractSpotifyTrackFromEntry} onImportSpotifyPlaylists={importSpotifyPlaylists} onImportSpotifyLikedSongs={importSpotifyLikedSongs} onImportSpotifyHistory={importSpotifyHistory} onImportSpotifyPlaylist={importSpotifyPlaylist} onSignOut={signOut} onClose={()=>setSettingsOpen(false)} sleepTimer={sleepTimer} setSleepTimer={setSleepTimer} streak={streak} streakMilestoneInfo={streakMilestoneInfo} streakHistory={streakHistory} streakCalendar={streakCalendar}/>}
     <audio ref={audio} preload="metadata"/>
     {toast&&<div className="toast">{toast}</div>}
   </div>
@@ -1983,12 +2155,61 @@ function HomePage({current,songs,topSongs,recentSongs,likes,play,playAlbum,like,
 }
 function HomeEditorial({current,latestIsAlbum,songs,likes,follows,play,playAlbum,openAlbum,goSearch,goStats}){
   const palette=current?.color||["#31545a","#111820"];
+  const deluxeAlbumUrl = assetUrl("/images/deluxe-tunes-album.png");
   const isWakeUpSingle=current?.id==="when-i-wake-up-christian-gate-single";
-  return <section className="homeEditorial" style={{"--accent-a":palette[0],"--accent-b":palette[1]}}>
-    <header className="editorialIntro"><div><span>DELUXE TUNES</span><h1>Now, for<br/><em>you.</em></h1></div><p>A personal listening space for the tracks that stay with you.</p></header>
-    <div className="editorialMention"><span className="editorialMentionLabel">SPECIAL MENTION</span><strong>Reece Perrin requested Chri$tian Gate$</strong></div>
-    <div className="editorialFeature"><div className="editorialArtwork"><div className="editorialArtworkGlow"/><div className="editorialDisc" aria-hidden="true"/><Cover song={current}/><span>NOW PLAYING</span></div><div className="editorialInfo"><div className="editorialMeta"><span>01 / FEATURED LISTEN</span><b>{current?.genre||"LOCAL LIBRARY"}</b></div><h2>{current?.title||"Choose something to play"}</h2><p>{current?.artist||"Your collection"}</p><p className="editorialAlbum"><small>{isWakeUpSingle?"SINGLE":"ALBUM"}</small>{current?.album||"Deluxe Tunes"}</p></div></div>
-    <div className="editorialLower"><div className="editorialProfile"><div className="editorialLowerHead"><span>LISTENING PROFILE</span><button onClick={goStats}>Open stats <ChevronRight size={13}/></button></div><div className="editorialProfileGrid"><div><b>{String(songs.length).padStart(2,"0")}</b><small>TRACKS READY</small></div><div><b>{String(likes.length).padStart(2,"0")}</b><small>LIKED</small></div><div><b>{String(follows.length).padStart(2,"0")}</b><small>FOLLOWED</small></div></div></div><button className="editorialLatest" onClick={()=>latestIsAlbum&&openAlbum(current)}><Cover song={current}/><span><small>VIEW SINGLE</small><b>{current?.title||"Browse your library"}</b><em>{current?.artist||"Deluxe Tunes"}</em></span></button></div>
+
+  return <section className="homeEditorial deluxeWelcome" style={{"--accent-a":palette[0],"--accent-b":palette[1]}}>
+    <div className="welcomeLeft">
+      <div className="welcomeEyebrow">WELCOME TO</div>
+      <h1 className="welcomeTitle">
+        <span>Deluxe Tunes</span>
+        <span className="welcomeSoundwave" aria-hidden="true">
+          {[0,1,2,3,4,5,6,7,8,9,10,11,12].map((bar) => (
+            <i key={bar} style={{height: `${8 + ((bar % 6) * 7)}px`}} />
+          ))}
+        </span>
+      </h1>
+      <p className="welcomeText">Your music, your way. Discover, stream and vibe with Deluxe Tunes.</p>
+
+      <div className="welcomeArtworkWrap">
+        <div className="welcomeArtworkFrame">
+          <div className="welcomeVinylPeek" aria-hidden="true" />
+          <img src={deluxeAlbumUrl} alt="Deluxe Tunes album art" />
+          <div className="welcomeArtworkGlow" aria-hidden="true" />
+        </div>
+      </div>
+    </div>
+
+    <div className="welcomePanel">
+      <div className="welcomePanelBadge">WELCOME ABOARD</div>
+      <h2>Thanks for joining Deluxe Tunes!</h2>
+      <p>We’re so glad you’re here. Deluxe Tunes is still in development, and every day we’re working to make your experience even better.</p>
+      <p>Right now, you might notice some features are still being polished, but rest assured — we’re constantly improving, adding new features, and listening to your feedback.</p>
+      <p>Stay tuned for big updates, exciting new features, and huge changes that will take your music experience to the next level.</p>
+
+      <button className="welcomeStudioButton" onClick={goStats}>
+        <span className="welcomeStudioIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 18V6M8 18V10M12 18V8M16 18V12M20 18V4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
+        Deluxe Tunes Studio
+      </button>
+
+      <div className="welcomeFeatureGrid">
+        <div className="welcomeFeatureCard">
+          <div className="welcomeFeatureIcon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 18V7.5C8 6.12 9.12 5 10.5 5C11.88 5 13 6.12 13 7.5V18M13 10.5C13 9.12 14.12 8 15.5 8C16.88 8 18 9.12 18 10.5V18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 18H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg></div>
+          <h3>More Music</h3>
+          <p>We’re adding more artists, genres and playlists.</p>
+        </div>
+        <div className="welcomeFeatureCard">
+          <div className="welcomeFeatureIcon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 3L18 3L13 9H18L12 21L11 15H6L13 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+          <h3>Better Performance</h3>
+          <p>Faster, smoother and more reliable.</p>
+        </div>
+        <div className="welcomeFeatureCard">
+          <div className="welcomeFeatureIcon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L14.5 8.5L20 11L14.5 13.5L12 19L9.5 13.5L4 11L9.5 8.5L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+          <h3>Exciting Features</h3>
+          <p>New tools, customisation and more.</p>
+        </div>
+      </div>
+    </div>
   </section>
 }
 function LandingHero({latest,latestIsAlbum,songs,likes,follows,play,openAlbum,goSearch,goStats}){
@@ -2088,7 +2309,7 @@ const ARTISTS=[
   {artistId:"d-block-europe",name:"D-Block Europe",meta:"D-Block Europe",image:"/images/artist-d-block-europe.png",songId:"ufo-d-block-europe-aitch",accent:"peach"},
   {artistId:"arrdee",name:"ArrDee",meta:"ArrDee",image:"/images/artist-arrdee.png",songId:"flowers-say-my-name-arrdee",accent:"lime"},
   {artistId:"bella-kay",name:"Bella Kay",meta:"Bella Kay",image:"/images/artist-bella-kay.png",songId:"bella-kay-iloveitiloveitiloveit",accent:"teal"}
-];
+].map(artist=>({...artist,image:assetUrl(artist.image)}));
  function ArtistsPage({songs,openArtist,follows,toggleFollow}){return <section className="page artistsPage"><div className="pageHeading"><span>ARTISTS</span><h1>Artists you might like.</h1><p>Follow artists to shape your home feed.</p></div><div className="artistPageGrid">{ARTISTS.map(a=>{const song=songs.find(s=>s.id===a.songId)||songs.find(s=>s.artist?.toLowerCase().includes(a.name.toLowerCase()))||songs[0];const followed=follows?.includes(a.name);return <article className="artistPageCard" key={a.name}><button className="artistOpen" onClick={()=>openArtist(a.name)}><div className="artistPageImage">{a.image?<img src={a.image} alt=""/>:<Cover song={song}/>}</div><div className="artistPageMeta"><h2>{a.name} <BadgeCheck className="verifiedIcon" size={16} aria-label="Verified by Deluxe Tunes"/></h2></div></button><button className={followed?"followBtn active":"followBtn"} onClick={()=>toggleFollow(a.name)}>{followed?"Following":"Follow"}</button></article>})}</div></section>}
 
 function buildArtistPlayQueue(artist, songs, orderedArtistSongs){
@@ -2218,8 +2439,8 @@ function LyricsPage({songs,current,position,play,showLyrics,setShowLyrics,back,b
    backgroundPosition: "center center",
    backgroundRepeat: "no-repeat",
  } : {background:`radial-gradient(circle at 50% 38%, ${palette.glow}44, transparent 34%), radial-gradient(circle at 50% 68%, ${palette.accent}66, transparent 52%), linear-gradient(145deg, ${palette.bg}, #050609)`};
- const lyricsBackgroundStyle = {
-   backgroundImage: `linear-gradient(180deg, rgba(8,10,14,0.14), rgba(8,10,14,0.8)), url(/images/mount-back.png)`,
+  const lyricsBackgroundStyle = {
+   backgroundImage: `linear-gradient(180deg, rgba(8,10,14,0.14), rgba(8,10,14,0.8)), url(${assetUrl("/images/mount-back.png")})`,
    backgroundSize: "cover",
    backgroundPosition: "center center",
    backgroundRepeat: "no-repeat",
@@ -2245,13 +2466,13 @@ function QueuePanel({songs,queueSongs,current,likes,like,addToPlaylist,downloads
     <div className="queueList queueListModern">{queueSongs.length?<>{queueSongs.map((s,i)=><div className={current?.id===s.id?"queueRow current":"queueRow"} key={s.id}><span className="queuePosition">{i+1}</span><button className="queueTrack" onClick={()=>play(s)}><Cover song={s}/><span><b>{s.title}</b><small>{s.artist}</small></span></button><button className={likes?.includes(s.id)?"heart liked":"heart"} onClick={()=>like?.(s.id)} aria-label="Liked Songs"><Heart size={15} fill={likes?.includes(s.id)?"currentColor":"none"}/></button><button onClick={()=>addToPlaylist?.(s)} title="Add to playlist" aria-label="Add to playlist"><ListPlus size={15}/></button><button className={downloads?.includes(s.id)?"queueDownload active":"queueDownload"} onClick={()=>downloadSong?.(s)} title="Download" aria-label="Download"><Download size={15}/></button><button className="queueMoveUp" onClick={()=>i>0&&moveQueue(i,i-1)} disabled={i===0} title={i===0?"Already first":"Move up"} aria-label={i===0?"Already first":"Move up in queue"}><ArrowLeft size={15}/></button><button onClick={()=>removeFromQueue(s.id)} title="Remove" aria-label="Remove from queue"><X size={15}/></button></div>)}</>:<div className="queueEmpty"><ListOrdered size={30}/><b>Your queue is empty.</b><span>Search above to choose what plays next.</span></div>}</div>
   </div></div>
 }
-function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDiscordConnected,discordAuth,setDiscordAuth,spotifyConnected,setSpotifyConnected,spotifyProfile,setSpotifyProfile,spotifyAuthState,setSpotifyAuthState,matchSongFromSpotify,extractSpotifyTrackFromEntry,onImportSpotifyPlaylists,onImportSpotifyLikedSongs,onImportSpotifyHistory,onImportSpotifyPlaylist,onSignOut,onClose,sleepTimer,setSleepTimer}){
+function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDiscordConnected,discordAuth,setDiscordAuth,spotifyConnected,setSpotifyConnected,spotifyProfile,setSpotifyProfile,spotifyAuthState,setSpotifyAuthState,matchSongFromSpotify,extractSpotifyTrackFromEntry,onImportSpotifyPlaylists,onImportSpotifyLikedSongs,onImportSpotifyHistory,onImportSpotifyPlaylist,onSignOut,onClose,sleepTimer,setSleepTimer,streak,streakMilestoneInfo,streakHistory,streakCalendar}){
   async function connectDiscord() {
-    const w = window.open(`${API_BASE}/api/discord/auth/start`, "deluxeTunesDiscord", "width=520,height=760");
+    const w = openAuthWindow(`${API_BASE}/api/discord/auth/start`, "deluxeTunesDiscord");
     if (!w) {
-      alert("Allow popups for Deluxe Tunes to connect Discord.");
       return;
     }
+    const isExternalBrowser = Boolean(w?.external);
     const timer = setInterval(async () => {
       try {
         const r = await fetch(`${API_BASE}/api/discord/status`, { cache: "no-store" });
@@ -2262,10 +2483,10 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
           setDiscordAuth(user);
           setDiscordConnected(true);
           clearInterval(timer);
-          if (!w.closed) w.close();
+          if (!isExternalBrowser && !w.closed) w.close();
         }
       } catch (err) {}
-      if (w.closed) clearInterval(timer);
+      if (!isExternalBrowser && w.closed) clearInterval(timer);
     }, 1500);
   }
 
@@ -2278,12 +2499,12 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
 
   async function connectSpotify() {
     setSpotifyAuthState("connecting");
-    const w = window.open(`${API_BASE}/api/spotify/auth/start`, "deluxeTunesSpotify", "width=520,height=760");
+    const w = openAuthWindow(`${API_BASE}/api/spotify/auth/start`, "deluxeTunesSpotify");
     if (!w) {
-      setSpotifyAuthState("failed");
-      alert("Allow popups for Deluxe Tunes to connect Spotify.");
+      setSpotifyAuthState("connected");
       return;
     }
+    const isExternalBrowser = Boolean(w?.external);
     const timer = setInterval(async () => {
       try {
         const r = await fetch(`${API_BASE}/api/spotify/status`, { cache: "no-store" });
@@ -2294,11 +2515,11 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
           setSpotifyConnected(true);
           setSpotifyAuthState("connected");
           clearInterval(timer);
-          if (!w.closed) w.close();
+          if (!isExternalBrowser && !w.closed) w.close();
           return;
         }
       } catch (err) {}
-      if (w.closed) {
+      if (!isExternalBrowser && w.closed) {
         clearInterval(timer);
         if (!spotifyConnected) setSpotifyAuthState("failed");
       }
@@ -2493,6 +2714,38 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
               <div className="profileBigAvatar">{avatar ? <img src={avatar} alt="Profile"/> : <UserRound size={30}/>}</div>
               <div><b>{account?.nickname || "Deluxe Listener"}</b><span>{account?.email || ""}</span></div>
             </div>
+
+            <div className="deluxeStreakCard">
+              <div className="deluxeStreakHeader">
+                <div className="deluxeStreakIcon"><Sparkles size={16}/></div>
+                <div>
+                  <span>DELUXE STREAK</span>
+                  <b>🔥 {streak.current || 0} Day Streak</b>
+                </div>
+              </div>
+              <div className="deluxeStreakMetrics">
+                <div><small>Current</small><b>{streak.current || 0}</b></div>
+                <div><small>Longest</small><b>{streak.longest || 0}</b></div>
+              </div>
+              <div className="deluxeStreakMilestone">
+                <span>NEXT MILESTONE</span>
+                <b>🔥 {streakMilestoneInfo.milestone || 3} DAYS</b>
+                <small>{streakMilestoneInfo.remaining > 0 ? `${streakMilestoneInfo.remaining} days remaining` : "Milestone reached"}</small>
+              </div>
+              {streakHistory.length > 0 && (
+                <div className="deluxeStreakHistory">
+                  {streakHistory.map((value, index) => (
+                    <span key={`${value}-${index}`}>Previous: {value} days</span>
+                  ))}
+                </div>
+              )}
+              <div className="deluxeStreakCalendar" aria-label="Streak calendar">
+                {streakCalendar.map((cell) => (
+                  <div key={cell.key} className={cell.active ? "deluxeCalendarDay active" : "deluxeCalendarDay"} title={cell.active ? cell.key : "No listening day"} />
+                ))}
+              </div>
+            </div>
+
             <label className="settingLabel">Nickname<div className="authInput"><UserRound size={15}/><input value={nickname} onChange={(e) => setNickname(e.target.value)}/></div></label>
             <div className="avatarUpload settingUpload">
               <label className="uploadBtn"><Upload size={15}/> Change profile picture<input type="file" accept="image/*" onChange={chooseAvatar}/></label>
@@ -2670,11 +2923,12 @@ function fmtDuration(seconds) {
 function PlaylistPicker({song,playlists,addPlaylist,addToPlaylist,onClose}){return <div className="overlayPanel playlistPickerOverlay"><div className="playlistPicker"><div className="panelHead"><div><span>ORGANISE</span><h2>Add to Playlist</h2><p>{song?.title}</p></div><button className="iconBtn" onClick={onClose}><X size={18}/></button></div><button className="ghost pickerCreate" onClick={()=>{addPlaylist();}}><Plus size={15}/> Create new playlist</button><div className="pickerList">{playlists.length?playlists.map(p=><button key={p.id} onClick={()=>addToPlaylist(song,p.id)}><ListMusic size={16}/><span><b>{p.name}</b><small>{p.songs.length} songs</small></span><ChevronRight size={15}/></button>):<div className="empty compactEmpty"><ListMusic size={25}/><span>No playlists yet.</span></div>}</div></div></div>}
 
 function StatsPage({songs,stats,livePlays,seconds,plays,back,play,like,likes,addToPlaylist,downloads,downloadSong}){
- const top=[...songs].sort((a,b)=>(stats[b.id]?.plays||0)-(stats[a.id]?.plays||0)).slice(0,5);
- const genreCounts=songs.reduce((m,s)=>{m[s.genre]=(m[s.genre]||0)+1;return m},{}); const genres=Object.entries(genreCounts).sort((a,b)=>b[1]-a[1]).slice(0,4); const max=Math.max(1,...genres.map(x=>x[1]));
+ const top=[...songs].sort((a,b)=>(getEffectivePlayCount(b,stats,livePlays))-(getEffectivePlayCount(a,stats,livePlays))).slice(0,5);
+ const profile = calculateTasteProfile(songs, stats, livePlays);
+ const totalProfileShare = profile.reduce((sum, item) => sum + item.share, 0) || 1;
  return <section className="page statsPage"><MobileBack onClick={back} label="Back"/><div className="pageHeading"><span>YOUR STATS</span><h1>Your listening story.</h1><p>Your stats, taste profile and collection stay on this device.</p></div>
  <div className="stats"><Stat icon={Clock3} value={fmtDuration(seconds)} label="Listening time"/><Stat icon={Play} value={plays} label="Total plays"/><Stat icon={Disc3} value={songs.length} label="Songs"/><Stat icon={Users} value={[...new Set(songs.map(s=>s.artist))].length} label="Artists"/></div>
- <div className="dnaGrid"><div className="panel dnaPanel"><div className="sectionTitle"><h2>Taste DNA</h2><span>BASED ON YOUR LIBRARY</span></div><div className="dnaBars">{genres.map(([g,n])=><div key={g}><div><b>{g}</b><small>{Math.round(n/max*100)}%</small></div><i style={{width:`${n/max*100}%`}}/></div>)}</div><div className="dnaFacts"><span><b>Energy</b> High contrast</span><span><b>Era</b> Current rotation</span><span><b>Mix</b> Rap + Pop</span></div></div><div className="panel storyCard"><span>WEEKLY LISTENING STORY</span><b>{fmtDuration(seconds)} of listening</b><p>{plays} plays across your Deluxe Tunes collection.</p><button className="primary small" onClick={()=>navigator.share?.({title:"My Deluxe Tunes week",text:`${fmtDuration(seconds)} listening time · ${plays} plays`})}><Share2 size={14}/> Share recap</button></div></div>
+ <div className="dnaGrid"><div className="panel dnaPanel"><div className="sectionTitle"><h2>Taste DNA</h2><span>BASED ON YOUR LISTENING</span></div><div className="dnaBars">{profile.map(({genre, share})=><div key={genre}><div><b>{genre}</b><small>{Math.round(share)}%</small></div><i style={{width:`${(share / totalProfileShare) * 100}%`}}/></div>)}</div><div className="dnaFacts"><span><b>Energy</b> {profile[0]?.genre || "Balanced"}</span><span><b>Era</b> Current rotation</span><span><b>Mix</b> {profile.slice(0,2).map(item => item.genre).join(" + ") || "Your mix"}</span></div></div><div className="panel storyCard"><span>WEEKLY LISTENING STORY</span><b>{fmtDuration(seconds)} of listening</b><p>{plays} plays across your Deluxe Tunes collection.</p><button className="primary small" onClick={()=>navigator.share?.({title:"My Deluxe Tunes week",text:`${fmtDuration(seconds)} listening time · ${plays} plays`})}><Share2 size={14}/> Share recap</button></div></div>
  <div className="panel statsTrackList"><Section title="Top tracks" action="All time"/>{top.map((s,i)=><Row key={s.id} song={s} n={i+1} stat={`${getEffectivePlayCount(s,stats,livePlays)} plays`} liked={likes?.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads?.includes(s.id)} downloadSong={downloadSong} stats={stats} livePlays={livePlays}/>)}</div>
  <div className="sectionTitle"><h2>Digital Collection</h2><span>ALBUMS & PLAYLISTS</span></div><div className="collectionShelf">{songs.slice(0,8).map(s=><div key={s.id} className="collectionItem"><Cover song={s}/><b>{s.album||s.title}</b><small>{s.artist}</small></div>)}</div>
  <div className="socialGrid"><div className="socialCard"><UsersRound size={20}/><b>Listen Together</b><span>Create a shared queue when social playback is connected.</span><button className="ghost" onClick={()=>navigator.share?.({title:"Deluxe Tunes",text:"Listen Together"})}>Invite people</button></div><div className="socialCard"><ListMusic size={20}/><b>Collaborative Playlists</b><span>Build playlists with friends and keep the queue in sync.</span><button className="ghost">Create collaborative</button></div><div className="socialCard"><Layers3 size={20}/><b>Taste Overlap</b><span>Compare favourite artists when viewing another profile.</span><button className="ghost">View overlap</button></div></div>
@@ -2725,7 +2979,7 @@ function formatPlayCount(value){
 }
 function Stat({icon:I,value,label}){return <div className="stat"><I size={19}/><b>{value}</b><span>{label}</span></div>}
 
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
+if (import.meta.env.PROD && window.location.protocol !== "file:" && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register(assetUrl("/sw.js")).catch(() => {});
   });
