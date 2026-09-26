@@ -1276,6 +1276,20 @@ const resolveApiBase = () => {
 const API_BASE = resolveApiBase();
 const BACKEND_ENABLED = true;
 
+function resolveDiscordArtworkUrl(artwork) {
+  if (typeof artwork !== "string" || !artwork.trim()) return "deluxetunes";
+  const relativePath = artwork.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!relativePath.startsWith("images/")) return "deluxetunes";
+
+  const encodedPath = relativePath.split("/").map(segment => {
+    let decodedSegment = segment;
+    try { decodedSegment = decodeURIComponent(segment); } catch {}
+    return encodeURIComponent(decodedSegment).replace(/[!'()*]/g, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  }).join("/");
+  if (encodedPath.split("/").some(segment => segment === "." || segment === "..")) return "deluxetunes";
+  return `${API_BASE}/${encodedPath}`;
+}
+
 function openAuthWindow(url, title = 'deluxeTunesAuth') {
   if (window.electronAPI?.openExternal) {
     try {
@@ -1392,7 +1406,7 @@ function App(){
     const payload = current ? {
       details: current.title || "Deluxe Tunes",
       state: playing ? "Listening on Deluxe Tunes" : "Paused • Deluxe Tunes",
-      largeImageKey: "deluxetunes",
+      largeImageKey: resolveDiscordArtworkUrl(current.artwork),
       largeImageText: "Deluxe Tunes",
       smallImageKey: "deluxe_tunes",
       smallImageText: "Deluxe Tunes",

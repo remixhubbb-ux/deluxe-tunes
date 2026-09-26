@@ -412,6 +412,24 @@ function html(res,status,body){res.writeHead(status,{'Content-Type':'text/html; 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));}
 
 const server=http.createServer(async (req,res)=>{
+  const requestUrl=new URL(req.url,`http://${req.headers.host||'localhost'}`);
+  if(requestUrl.pathname.startsWith('/images/') && (req.method==='GET' || req.method==='HEAD')){
+    try{
+      const relativePath=decodeURIComponent(requestUrl.pathname.slice('/images/'.length));
+      const imagesRoot=path.resolve(__dirname,'public','images');
+      const artworkPath=path.resolve(imagesRoot,relativePath);
+      if(!relativePath || !artworkPath.startsWith(`${imagesRoot}${path.sep}`)) throw new Error('Invalid artwork path');
+      const contentTypes={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.avif':'image/avif'};
+      const contentType=contentTypes[path.extname(artworkPath).toLowerCase()];
+      if(!contentType) throw new Error('Unsupported artwork type');
+      const image=await fs.readFile(artworkPath);
+      res.writeHead(200,{'Content-Type':contentType,'Content-Length':image.length,'Cache-Control':'public, max-age=31536000, immutable','Access-Control-Allow-Origin':'*'});
+      return res.end(req.method==='HEAD'?undefined:image);
+    }catch{
+      res.writeHead(404,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
+      return res.end(JSON.stringify({error:'Not found'}));
+    }
+  }
   if(req.method==='OPTIONS') return json(res,204,{});
   if(req.url==='/api/plays' && req.method==='GET') return json(res,200,await readData());
   if(req.url==='/api/discord/status' && req.method==='GET'){
