@@ -95,9 +95,15 @@ self.addEventListener("fetch", event => {
   if (request.method !== "GET" || !isSameOrigin(request)) return;
 
   const url = new URL(request.url);
+  const destination = request.destination || "";
 
   if (url.pathname.startsWith("/audio/")) {
     event.respondWith(handleAudio(request));
+    return;
+  }
+
+  if (destination === "image" || destination === "style" || destination === "script" || destination === "font") {
+    event.respondWith(cacheFirst(request));
     return;
   }
 

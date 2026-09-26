@@ -1,70 +1,169 @@
-# Deluxe Tunes 5.0
+# Deluxe Tunes
 
-A Spotify-inspired personal music player built with React + Vite. It is intentionally its own design, while keeping familiar streaming-app patterns.
+Deluxe Tunes is a polished local-first music player with a bundled media library, Spotify and Discord account connection, desktop/mobile packaging, and a persistent listening experience.
 
-## Included real track
-- **You Stole The Show — SIENNA SPIRO** (MP3, bundled in `public/audio/`)
+Current release: 8.1.6
 
-The six original Deluxe Tunes demo tracks are also bundled as WAV files.
+## What the app includes
 
-## Run it
+- Full music library browsing with album and artist views
+- Real bundled audio playback from files under `public/audio/`
+- Search, filtering, playlists, queue management, and playback controls
+- Synced lyrics for many bundled tracks
+- Listening stats and play tracking
+- Daily listening streak tracking and milestone notifications
+- Spotify and Discord OAuth sign-in via the user’s default browser
+- Windows desktop app packaging with Electron and installer generation
+- Android/iOS Capacitor app support
+- Local-first behavior with production API fallback for OAuth and shared backend functions
+
+## Current catalog
+
+The app ships with a curated, real bundled catalog rather than a single demo track. It includes music from artists such as:
+
+- SIENNA SPIRO
+- Alex Warren
+- OneDa
+- Chri$tian Gate$
+- Dave
+- ArrDee
+- Aitch x AJ Tracey
+- Bella Kay
+- Alexandra Burke
+- and other artists represented in the bundled collection
+
+Representative albums and songs in the current project include:
+
+- `You Stole The Show`
+- `The Visitor`
+- `WILDCHILD`
+- `Formula OneDa`
+- `WHEN I WAKE UP`
+- `Rain`
+- `Flowers (Say My Name)`
+- `Eternity`
+- `BAD`
+
+Artwork and audio assets are bundled under `public/images/` and `public/audio/`.
+
+## Local development
+
+Install dependencies:
+
 ```bash
 npm install
+```
+
+Start the frontend in development mode:
+
+```bash
 npm run dev
 ```
 
-Then open the local Vite URL.
-
-## Windows download
-
-The GitHub Actions workflow builds a Windows installer and attaches it to a GitHub release whenever a version tag is pushed:
+Start the backend OAuth/session server locally if you want to test the auth flow in a local environment:
 
 ```bash
-git tag v8.1.0
-git push origin v8.1.0
+npm run server
 ```
 
-Set this Cloudflare Pages environment variable to the repository's stable latest-release URL, then redeploy the site:
+The backend listens on `PORT` and defaults to `http://localhost:8787` unless overridden. In development, the app still uses localhost where appropriate. In production, it prefers the hosted HTTPS API instead of a local desktop origin.
 
-```text
-VITE_WINDOWS_DOWNLOAD_URL=https://github.com/remixhubbb-ux/deluxe-tunes/releases/download/v8.1.0/Deluxe-Tunes-Setup.exe
+## Production architecture
+
+This project is designed to work in both local dev and production deployment:
+
+- Frontend: React + Vite
+- Desktop shell: Electron
+- Mobile shells: Capacitor Android/iOS
+- Hosted backend: Node.js server in `server.mjs`
+- Database: PostgreSQL when `DATABASE_URL` is set, with JSON file fallback used for local/offline scenarios
+
+The production OAuth flow uses a real HTTPS backend, for example:
+
+- `https://deluxe-tunes-api.onrender.com/api/spotify/callback`
+- `https://deluxe-tunes-api.onrender.com/api/discord/callback`
+
+The desktop app opens the provider login using the user’s default browser, then completes the callback and posts the result back to the app. This avoids hard-coding a localhost dependency into the packaged desktop build.
+
+## Environment variables
+
+Create a local `.env` file for local development. Example values look like this (do not commit secrets):
+
+```env
+PORT=8787
+HOST=0.0.0.0
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+APP_ORIGIN=http://localhost:8787
+OAUTH_BASE_URL=http://localhost:8787
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URI=http://localhost:8787/api/spotify/callback
+DISCORD_CLIENT_ID=your_discord_client_id
+DISCORD_CLIENT_SECRET=your_discord_client_secret
+DISCORD_REDIRECT_URI=http://localhost:8787/api/discord/callback
 ```
 
-The public preview will then show a **Download for Windows** button. Android and iOS builds use their existing scripts and are not changed by this workflow.
+In production, set the same variables to the live HTTPS values instead of localhost.
 
-## Production check
+## Backend details
+
+`server.mjs` is the backend used for OAuth, session persistence, token exchange, and play stats. It:
+
+- binds to `HOST` and `PORT` using `server.listen(PORT, HOST)`
+- uses PostgreSQL via `pg` when `DATABASE_URL` is configured
+- falls back to local JSON files in `data/` when a database is not configured
+- handles Spotify and Discord PKCE flows
+- exposes status endpoints for auth state
+- stores play statistics and user session data in a persistent backend
+
+## Build and release commands
+
+### Production frontend build
+
 ```bash
 npm run build
+```
+
+### Preview built frontend
+
+```bash
 npm run preview
 ```
 
-## Features
-- Real browser audio playback
-- Play/pause, previous/next, shuffle and repeat
-- Seek bar and volume control
-- Automatic next track
-- Search
-- Liked Songs
-- Local audio import
-- Listening stats stored locally
-- Responsive desktop/mobile layout
-- Keyboard shortcuts: Space, Left Arrow, Right Arrow
+### Windows desktop release
 
-## Note
-The supplied MP3 is included locally for this project and is only played by the browser from the local project files.
+```bash
+npm run desktop:dist
+```
 
+This produces the Windows installer in `release/Deluxe-Tunes-Setup.exe`.
 
-### Featured artwork
-The bundled “You Stole The Show” track uses `public/images/sienna-spiro-you-stole-the-show.png` as its cover artwork.
+### Android build
 
+```bash
+npm run android:apk
+```
 
-### Latest bundled track
-- The Visitor — SIENNA SPIRO
-- Artwork: `public/images/the-visitor-sienna-spiro.png`
-- Audio: `public/audio/the-visitor-sienna-spiro.mp4` (229.07s)
+Or bundle Android release:
 
+```bash
+npm run android:aab
+```
 
-## Recent changes
-- Removed Midnight Drive, Neon Skies, Golden Hour, Ocean Lights, After Hours, and Electric Pulse.
-- The Visitor now uses karaoke-style synced lyrics with automatic active-line scrolling/highlighting based on playback time.
-- No lyrics editor/upload UI is included.
+### iOS build
+
+```bash
+npm run ios:build
+```
+
+## Notes
+
+- The app is intentionally local-first but includes real external OAuth integrations for Spotify and Discord.
+- Discord Rich Presence is handled in the desktop Electron shell, not in the hosted backend.
+- The project does not rely on a local Vite dev server for production authentication.
+- The packaged desktop app is expected to work as a real installed app, not only via `npm run dev`.
+- The repository intentionally keeps secrets in local environment variables rather than in source control.
+
+## Version
+
+The current package version is `8.1.6`.

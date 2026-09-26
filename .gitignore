@@ -5,6 +5,29 @@ android.incomplete-backup/
 .env.*
 !.env.example
 
+# Secrets and local credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+*.jks
+*.keystore
+
+# Local app credentials / OAuth data
+client-secrets/
+client-secret/
+client secrets/
+
+# Generated app artifacts and packaging output
+/build/
+/release/
+*.exe
+
+# Stored auth/session state
+/data/discord-auth.json
+/data/spotify-auth.json
 data/discord-auth.json
 data/spotify-auth.json
 

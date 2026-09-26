@@ -1133,7 +1133,7 @@ function DevelopmentPreview(){
       <h1>We're still building<br/><em>the signal.</em></h1>
       <p className="developmentLead">A more thoughtful place for your music is taking shape. The public build is currently <strong>25% complete</strong>.</p>
       <div className="developmentProgress" aria-label="25 percent complete"><div><span>BUILD PROGRESS</span><b>25%</b></div><div className="developmentProgressTrack"><i/></div></div>
-      <div className="developmentMeta"><div><span>AVAILABLE SONGS</span><b>{INITIAL.length}</b></div><div><span>RELEASE STATUS</span><b>IN EARLY DEVELOPMENT</b></div><div><span>VERSION</span><b>v8.1.5</b></div></div>
+      <div className="developmentMeta"><div><span>AVAILABLE SONGS</span><b>{INITIAL.length}</b></div><div><span>RELEASE STATUS</span><b>IN EARLY DEVELOPMENT</b></div><div><span>VERSION</span><b>v{APP_VERSION}</b></div></div>
       <p className="developmentNote"><Sparkles size={15}/> Some songs and features aren't available yet.</p>
       <p className="developmentDisclaimer" style={{borderLeft:"2px solid var(--lime)",padding:"12px 14px",background:"rgba(183,255,60,.07)",color:"#b9c8c7",fontWeight:600,lineHeight:1.7}}>Some features may not work or may look different depending on the device you use. Google sign-in has not been configured properly yet. We are more focused on getting this app out to you guys.<br/><strong style={{color:"var(--lime)",display:"inline-block",marginTop:"5px"}}>— Deluxe Team</strong></p>
       <p style={{maxWidth:"570px",color:"#7f9092",fontSize:"10px",lineHeight:1.65,margin:"0 0 24px"}}><strong style={{color:"#d6e4e1"}}>An account is required to enter.</strong> The only way to make an account is through the app's <strong style={{color:"#d6e4e1"}}>Create account</strong> feature. Don't worry, you can edit your account at any time. If you can't update it now, you can do so later once your device has fully updated to the latest software.</p>
@@ -1143,7 +1143,7 @@ function DevelopmentPreview(){
         {WINDOWS_DOWNLOAD_URL&&<a className="developmentDownload" href={WINDOWS_DOWNLOAD_URL}><Download size={15}/> DOWNLOAD FOR WINDOWS</a>}
       </div>
     </section>
-    <footer className="developmentFooter"><span>LOCAL MUSIC EXPERIENCE</span><span>DELUXE TUNES v8.1.5 / BUILD 07</span></footer>
+    <footer className="developmentFooter"><span>LOCAL MUSIC EXPERIENCE</span><span>DELUXE TUNES v{APP_VERSION} / BUILD 07</span></footer>
   </main>
 }
 
@@ -2040,7 +2040,7 @@ function App(){
       <div className="navGroup">{nav.map(([id,label,I])=><button className={page===id?"nav active":"nav"} onClick={()=>goPage(id)} key={id}><I size={19}/><span>{label}</span></button>)}</div>
       <div className="sideFooter">
         <a href="https://mail.google.com/mail/?view=cm&fs=1&to=deluxe.tuness@gmail.com" target="_blank" rel="noreferrer"><Mail size={15}/><span>Contact support</span></a>
-        <small>Deluxe Tunes v8.1.5</small>
+        <small>Deluxe Tunes v{APP_VERSION}</small>
       </div>
     </aside>
 

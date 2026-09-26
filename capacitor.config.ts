@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: "Deluxe Tunes",
   webDir: "dist",
   bundledWebRuntime: false,
-  server: { cleartext: false },
+  server: { cleartext: true },
 };
 
 export default config;

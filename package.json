@@ -1,7 +1,7 @@
 {
   "name": "deluxe-tunes",
   "private": true,
-  "version": "8.1.0",
+  "version": "8.1.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,9 +18,10 @@
     "build:coming-soon": "vite build --mode coming-soon",
     "android:coming-soon": "npm run build:coming-soon && npx cap sync android",
     "ios:coming-soon": "npm run build:coming-soon && npx cap sync ios",
-    "desktop:build": "npm run build",
+    "desktop:build": "vite build",
     "desktop:dist": "npm run desktop:build && electron-builder --win --publish never",
-    "server": "node server.mjs"
+    "server": "node server.mjs",
+    "start": "node server.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
@@ -29,6 +30,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "discord-rpc": "^4.0.1",
     "lucide-react": "^0.468.0",
+    "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.4.10"
@@ -50,16 +52,29 @@
     "files": [
       "dist/**/*",
       "electron/main.cjs",
+      "electron/preload.cjs",
+      "server.mjs",
+      "data/**/*",
       "package.json"
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "Deluxe-Tunes-Setup.exe"
+      "artifactName": "Deluxe-Tunes-Setup.exe",
+      "icon": "public/logo.ico"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Deluxe Tunes",
+      "installerIcon": "public/logo.ico",
+      "uninstallerIcon": "public/logo.ico",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
     }
   }
 }

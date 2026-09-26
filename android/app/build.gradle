@@ -7,8 +7,8 @@ android {
         applicationId "com.deluxetunes.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 816
+        versionName "8.1.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,32 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    signingConfigs {
+        release {
+            def keystorePath = project.findProperty('DELUXE_KEYSTORE_PATH')
+            def keystorePassword = project.findProperty('DELUXE_KEYSTORE_PASSWORD')
+            def keyAlias = project.findProperty('DELUXE_KEY_ALIAS')
+            def keyPassword = project.findProperty('DELUXE_KEY_PASSWORD')
+
+            if (keystorePath && keystorePassword && keyAlias && keyPassword) {
+                storeFile file(keystorePath)
+                storePassword keystorePassword
+                keyAlias keyAlias
+                keyPassword keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (project.findProperty('DELUXE_KEYSTORE_PATH') && project.findProperty('DELUXE_KEYSTORE_PASSWORD') && project.findProperty('DELUXE_KEY_ALIAS') && project.findProperty('DELUXE_KEY_PASSWORD')) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 }
