@@ -557,16 +557,36 @@ async function announceNewBundledSongs(){
     console.error('[Discord releases] announcements require DATABASE_URL on production to keep deduplication durable');
     return;
   }
-  try{
-    const songs=productionNeedsDatabase
+  try {
+    const songs = productionNeedsDatabase
       ? await fetchReleaseCatalog(RELEASE_CATALOG_URL)
-      : parseBundledSongCatalog(await fs.readFile(path.join(__dirname,'src','main.jsx'),'utf8'));
-    const result=await releaseAnnouncementService.announceCatalog(songs);
-    console.log('[Discord releases] catalogue scan complete',{baseline:result.baseline,announced:result.announced});
-  }catch(error){
-    console.error('[Discord releases] catalogue scan failed',error?.message||'Unknown error');
+      : parseBundledSongCatalog(
+          await fs.readFile(path.join(__dirname, 'src', 'main.jsx'), 'utf8')
+        );
+
+    // Diagnostic: check whether Sprinter is in Render's catalogue
+    const sprinter = songs.find(
+      song => song.id === 'sprinter-dave-central-cee'
+    );
+
+    console.log('[Discord releases] Sprinter catalogue check', {
+      found: Boolean(sprinter),
+      id: sprinter?.id,
+      title: sprinter?.title,
+    });
+
+    const result = await releaseAnnouncementService.announceCatalog(songs);
+
+    console.log('[Discord releases] catalogue scan complete', {
+      baseline: result.baseline,
+      announced: result.announced,
+    });
+  } catch (error) {
+    console.error(
+      '[Discord releases] catalogue scan failed',
+      error?.message || 'Unknown error'
+    );
   }
-}
 const releaseCataloguePoller=createReleaseCataloguePoller({
   scan:announceNewBundledSongs,
   intervalMs:60_000,
@@ -901,4 +921,4 @@ if(isDiscordWebhookTest){
     console.log(`Deluxe Tunes server listening on http://${HOST}:${PORT}`);
     releaseCataloguePoller.start();
   });
-}
+}}
