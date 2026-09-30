@@ -900,6 +900,7 @@ async function initSpotifySession(){
   }
 }
 const isDiscordWebhookTest=process.argv.includes('--test-discord-release-webhook');
+
 if(isDiscordWebhookTest){
   try{
     const result=await sendDiscordReleaseWebhookTest({webhookUrl:DISCORD_NEW_RELEASE_WEBHOOK_URL});
@@ -910,10 +911,6 @@ if(isDiscordWebhookTest){
   }
   await dbPool?.end();
 }else{
-  await initDatabase();
-  await initSpotifySession();
-  if(releaseAnnouncementService.configured&&productionNeedsDatabase&&!DATABASE_URL){
-    console.error('[Discord releases] announcements require DATABASE_URL on production to keep deduplication durable');
   try {
     console.log('[Startup diagnostic] Starting database...');
     await initDatabase();
@@ -938,4 +935,4 @@ if(isDiscordWebhookTest){
     console.error('[STARTUP FAILED]', error?.stack || error?.message || error);
     process.exit(1);
   }
-}}}
+}}
