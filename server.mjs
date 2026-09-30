@@ -917,8 +917,20 @@ if(isDiscordWebhookTest){
   }else{
     await releaseCataloguePoller.scan();
   }
-  if(!shutdownRequested)server.listen(PORT, HOST, ()=>{
-    console.log(`Deluxe Tunes server listening on http://${HOST}:${PORT}`);
-    releaseCataloguePoller.start();
+
+  console.log('[Startup diagnostic]', {
+    shutdownRequested,
+    port: PORT,
+    host: HOST,
+    databaseConfigured: Boolean(DATABASE_URL),
   });
+
+  if (!shutdownRequested) {
+    server.listen(PORT, HOST, () => {
+      console.log(`Deluxe Tunes server listening on http://${HOST}:${PORT}`);
+      releaseCataloguePoller.start();
+    });
+  } else {
+    console.error('[Startup diagnostic] Server listen skipped because shutdown was requested');
+  }
 }}
