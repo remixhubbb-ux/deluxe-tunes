@@ -914,23 +914,29 @@ if(isDiscordWebhookTest){
   await initSpotifySession();
   if(releaseAnnouncementService.configured&&productionNeedsDatabase&&!DATABASE_URL){
     console.error('[Discord releases] announcements require DATABASE_URL on production to keep deduplication durable');
-  }else{
-    await releaseCataloguePoller.scan();
-  }
+  try {
+    console.log('[Startup diagnostic] Starting database...');
+    await initDatabase();
 
-  console.log('[Startup diagnostic]', {
-    shutdownRequested,
-    port: PORT,
-    host: HOST,
-    databaseConfigured: Boolean(DATABASE_URL),
-  });
+    console.log('[Startup diagnostic] Starting Spotify...');
+    await initSpotifySession();
 
-  if (!shutdownRequested) {
-    server.listen(PORT, HOST, () => {
+    console.log('[Startup diagnostic] Initialising release scan...');
+    if(releaseAnnouncementService.configured&&productionNeedsDatabase&&!DATABASE_URL){
+      console.error('[Discord releases] announcements require DATABASE_URL on production to keep deduplication durable');
+    }else{
+      await releaseCataloguePoller.scan();
+    }
+
+    console.log('[Startup diagnostic] Opening port', { port: PORT, host: HOST });
+
+    if(!shutdownRequested)server.listen(PORT, HOST, ()=>{
       console.log(`Deluxe Tunes server listening on http://${HOST}:${PORT}`);
       releaseCataloguePoller.start();
     });
-  } else {
-    console.error('[Startup diagnostic] Server listen skipped because shutdown was requested');
+  } catch(error) {
+    console.error('[STARTUP FAILED]', error?.stack || error?.message || error);
+    process.exit(1);
   }
 }}
+}
