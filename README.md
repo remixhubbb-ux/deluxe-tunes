@@ -123,6 +123,8 @@ In production, set the same variables to the live HTTPS values instead of localh
 
 For Render, set `DISCORD_NEW_RELEASE_WEBHOOK_URL` as a secret environment variable on the backend service (not in Vite, `VITE_*`, or frontend settings). Keep `DATABASE_URL` configured to a persistent PostgreSQL database: production announcement delivery is disabled without it because Render's instance filesystem is ephemeral. Set `APP_LINK_BASE` if the public app URL differs from the default; set `RELEASE_CATALOG_URL` only if its generated manifest is hosted elsewhere. Song links use `/?song=<song-id>` and open the matching track in the app. Adding a future bundled release to `DEMOS` and deploying the frontend publishes the updated manifest; the already-running backend detects it on its next poll (within about 60 seconds), without a Render backend restart. Spotify playlist imports are user-library additions, not release announcements.
 
+If a release was already captured in the silent baseline and needs a one-time announcement, temporarily set the Render backend variable `DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS` to its exact song ID (comma-separated for multiple IDs), for example `sprinter-dave-central-cee`. The next scan attempts only the explicitly selected baseline IDs; PostgreSQL atomically claims each, so a successful one is not repeated on later scans or restarts. Remove the variable after the scan/message. Keep the baseline table intact; do not delete/reset it.
+
 ### Test the Discord webhook locally on Windows
 
 1. In the VS Code PowerShell terminal, create your local environment file from the safe template: `Copy-Item .env.example .env`.

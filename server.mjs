@@ -29,6 +29,8 @@ const SPOTIFY_SESSION_FILE = path.join(__dirname, 'data', 'spotify-auth.json');
 const DISCORD_SESSION_FILE = path.join(__dirname, 'data', 'discord-auth.json');
 const RELEASE_ANNOUNCEMENTS_FILE = path.join(__dirname, 'data', 'release-announcements.json');
 const DISCORD_NEW_RELEASE_WEBHOOK_URL = process.env.DISCORD_NEW_RELEASE_WEBHOOK_URL || '';
+const DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS = (process.env.DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS || '')
+  .split(',').map(id=>id.trim()).filter(id=>/^[a-z0-9][a-z0-9._-]{0,119}$/i.test(id));
 const APP_LINK_BASE = (process.env.APP_LINK_BASE || 'https://deluxetunesapp.pages.dev').replace(/\/+$/, '');
 const RELEASE_CATALOG_URL = process.env.RELEASE_CATALOG_URL || new URL('/song-catalog.json', APP_LINK_BASE).toString();
 const APP_ORIGIN = (process.env.APP_ORIGIN || process.env.VITE_APP_ORIGIN || `http://localhost:${PORT}`).replace(/\/+$/, '');
@@ -456,7 +458,7 @@ async function writeReleaseAnnouncementFile(data){
 }
 
 const releaseAnnouncementStore = {
-  async initializeBaseline(songs){
+  async initializeBaseline(songs,announceIds=new Set()){
     const pool=await getDatabasePool();
     if(pool){
       const client=await pool.connect();
@@ -466,6 +468,7 @@ const releaseAnnouncementStore = {
         const state=await client.query('SELECT singleton_id FROM release_announcement_state WHERE singleton_id=TRUE');
         if(state.rowCount){await client.query('COMMIT');return false;}
         for(const song of songs){
+          if(announceIds.has(song.id))continue;
           await client.query(
             `INSERT INTO release_announcements (song_id,title,artist,artwork_url,app_url,status)
              VALUES ($1,$2,$3,$4,$5,'baseline') ON CONFLICT (song_id) DO NOTHING`,
@@ -482,11 +485,32 @@ const releaseAnnouncementStore = {
     return withReleaseFileLock(async()=>{
       const data=await readReleaseAnnouncementFile();
       if(data.initialized)return false;
-      data.songs=Object.fromEntries(songs.map(song=>[song.id,{...song,status:'baseline'}]));
+      data.songs=Object.fromEntries(songs.filter(song=>!announceIds.has(song.id)).map(song=>[song.id,{...song,status:'baseline'}]));
       data.initialized=true;
       await writeReleaseAnnouncementFile(data);
       console.log('[Discord releases] initial catalogue recorded without announcements',{songs:songs.length});
       return true;
+    });
+  },
+  async claimBaseline(song){
+    const pool=await getDatabasePool();
+    if(pool){
+      const result=await pool.query(
+        `UPDATE release_announcements SET title=$2,artist=$3,artwork_url=$4,app_url=$5,status='sending',
+           attempt_count=attempt_count+1,next_attempt_at=NULL,last_error=NULL,updated_at=NOW()
+         WHERE song_id=$1 AND status='baseline' AND attempt_count<$6 RETURNING attempt_count`,
+        [song.id,song.title,song.artist,song.artwork,song.appUrl,MAX_WEBHOOK_ATTEMPTS]
+      );
+      return result.rowCount?{attemptCount:Number(result.rows[0].attempt_count)||1}:false;
+    }
+    return withReleaseFileLock(async()=>{
+      const data=await readReleaseAnnouncementFile();
+      const existing=data.songs?.[song.id];
+      if(!existing||existing.status!=='baseline'||Number(existing.attemptCount||0)>=MAX_WEBHOOK_ATTEMPTS)return false;
+      const attemptCount=(Number(existing.attemptCount)||0)+1;
+      data.songs[song.id]={...existing,...song,status:'sending',attemptCount,nextAttemptAt:null,lastError:null};
+      await writeReleaseAnnouncementFile(data);
+      return {attemptCount};
     });
   },
   async claim(song,now=Date.now()){
@@ -575,7 +599,16 @@ async function announceNewBundledSongs(){
       title: sprinter?.title,
     });
 
-    const result = await releaseAnnouncementService.announceCatalog(songs);
+    const result = await releaseAnnouncementService.announceCatalog(songs, {
+      announceBaselineIds: DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS,
+    });
+
+    if(result.announced&&DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS.length){
+      console.log('[Discord releases] explicitly requested baseline announcements sent',{
+        ids:DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS.filter(id=>songs.some(song=>song.id===id)),
+        announced:result.announced,
+      });
+    }
 
     console.log('[Discord releases] catalogue scan complete', {
       baseline: result.baseline,

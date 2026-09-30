@@ -26,11 +26,18 @@ function createMemoryStore(now = () => Date.now()) {
   let initialized = false;
   return {
     songs,
-    async initializeBaseline(catalogue) {
+    async initializeBaseline(catalogue, announceIds = new Set()) {
       if (initialized) return false;
       initialized = true;
-      for (const song of catalogue) songs.set(song.id, { ...song, status: 'baseline' });
+      for (const song of catalogue) if (!announceIds.has(song.id)) songs.set(song.id, { ...song, status: 'baseline' });
       return true;
+    },
+    async claimBaseline(song) {
+      const previous = songs.get(song.id);
+      if (!previous || previous.status !== 'baseline') return false;
+      const attemptCount = (previous.attemptCount || 0) + 1;
+      songs.set(song.id, { ...previous, ...song, status: 'sending', attemptCount });
+      return { attemptCount };
     },
     async claim(song, currentTime = now()) {
       const previous = songs.get(song.id);
@@ -90,6 +97,24 @@ assert.equal(requests[0].body.embeds[0].thumbnail.url, 'https://deluxetunesapp.p
 assert.equal(requests[0].body.embeds[0].url, 'https://deluxetunesapp.pages.dev/?song=future-release-2026');
 assert.deepEqual(requests[0].body.allowed_mentions, { parse: [] });
 assert.equal(JSON.stringify(await service.announceCatalog(nextCatalogue)).includes('secret-token'), false, 'service results must not expose the webhook URL');
+
+const backfillStore = createMemoryStore();
+const backfillPosts = [];
+const backfillService = createReleaseAnnouncementService({
+  store: backfillStore,
+  webhookUrl: 'https://discord.example/webhook/not-real',
+  appLinkBase,
+  fetchImpl: async (_url, options) => { backfillPosts.push(JSON.parse(options.body)); return { ok: true, status: 204 }; },
+});
+const previouslyBaselined = [existingCatalogue[0], addedSong];
+assert.equal((await backfillService.announceCatalog(previouslyBaselined)).baseline, true);
+assert.equal(backfillPosts.length, 0, 'baseline-only initialization remains silent without explicit IDs');
+const targetedResult = await backfillService.announceCatalog(previouslyBaselined, { announceBaselineIds: [addedSong.id] });
+assert.equal(targetedResult.announced, 1, 'an explicit ID may be safely promoted from baseline to announced');
+assert.equal(backfillPosts.length, 1);
+assert.equal(backfillPosts[0].embeds[0].title, '🎵 Future Release');
+assert.equal((await backfillService.announceCatalog(previouslyBaselined, { announceBaselineIds: [addedSong.id] })).announced, 0);
+assert.equal(backfillPosts.length, 1, 'targeted baseline promotion must remain one-time across future scans');
 
 const noArtwork = normalizeReleaseSong({ id: 'plain-track', title: 'Plain Track', artist: 'Artist' }, appLinkBase);
 assert.equal(noArtwork.artwork, null);

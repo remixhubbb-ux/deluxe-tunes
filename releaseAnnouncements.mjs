@@ -177,7 +177,7 @@ export function createReleaseAnnouncementService({
 }) {
   return {
     configured: Boolean(webhookUrl),
-    async announceCatalog(rawSongs) {
+    async announceCatalog(rawSongs, { announceBaselineIds = [] } = {}) {
       if (!webhookUrl) return { configured: false, baseline: false, announced: 0 };
       const songs = [...new Map((Array.isArray(rawSongs) ? rawSongs : [])
         .map(song => normalizeReleaseSong(song, appLinkBase))
@@ -185,12 +185,17 @@ export function createReleaseAnnouncementService({
         .map(song => [song.id, song])).values()];
       if (!songs.length) return { configured: true, baseline: false, announced: 0 };
 
-      const baseline = await store.initializeBaseline(songs);
-      if (baseline) return { configured: true, baseline: true, announced: 0 };
+      const forcedBaselineIds = new Set((Array.isArray(announceBaselineIds) ? announceBaselineIds : [])
+        .map(id => String(id).trim())
+        .filter(id => /^[a-z0-9][a-z0-9._-]{0,119}$/i.test(id)));
+      const baseline = await store.initializeBaseline(songs, forcedBaselineIds);
+      if (baseline && !forcedBaselineIds.size) return { configured: true, baseline: true, announced: 0 };
 
       let announced = 0;
       for (const song of songs) {
-        const claim = await store.claim(song, now());
+        const claim = forcedBaselineIds.has(song.id)
+          ? (await store.claimBaseline?.(song, now()) || await store.claim(song, now()))
+          : baseline ? false : await store.claim(song, now());
         if (!claim) continue;
         const attemptCount = Number(typeof claim === 'number' ? claim : claim.attemptCount) || 1;
         try {
