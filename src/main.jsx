@@ -160,6 +160,7 @@ const ALBUMS = [
 const DEMOS = [
   {id:"clash-dave-stormzy",title:"Clash",artist:"Dave x Stormzy",album:"We’re All Alone In This Together",genre:"UK Rap",color:["#d13b79","#ef6d93"],bpm:0,file:"/audio/clash-dave-stormzy.mp3",length:251.87,artwork:"/images/clash-dave-stormzy.png",plays:303126185},
   {id:"location-dave-burna-boy",title:"Location",artist:"Dave feat. Burna Boy",album:"We’re All Alone In This Together",genre:"UK Rap",color:["#d13b79","#ef6d93"],bpm:0,file:"/audio/location-dave-burna-boy.mp3",length:234.2,artwork:"/images/location-dave-burna-boy.jpg",plays:736749144},
+  {id:"sprinter-dave-central-cee",title:"Sprinter",artist:"Dave x Central Cee",album:"Sprinter",genre:"UK Rap",color:["#1b2520","#768579"],bpm:0,file:"/audio/Sprinter - Central Cee, Dave.mp3",length:229,artwork:"/images/sprinter-central-cee-dave.png",explicit:true,plays:0},
   {"id":"ufo-d-block-europe-aitch","title":"UFO","artist":"D-Block Europe x Aitch","album":"The Blueprint","genre":"UK Rap","color":["#0b4ea2","#4bc8ff"],"bpm":0,"file":"/audio/ufo-d-block-europe-aitch.mp3","length":204.04,"artwork":"/images/ufo-d-block-europe-aitch.png","plays":127433941},
   {id:"barbarian-juice-wrld",title:"Barbarian",artist:"Juice WRLD",album:"Barbarian",genre:"Rap",color:["#3b0a0a","#ef4444"],bpm:0,file:"/audio/Barbarian - Juice Wrld.mp3",length:152.5,artwork:"/images/barbarian-juice-wrld.png",explicit:true,plays:35493413},
   {id:"sienna-the-visitor",title:"The Visitor",artist:"SIENNA SPIRO",album:"The Visitor",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/the-visitor-sienna-spiro.mp4",length:229,artwork:"/images/the-visitor-sienna-spiro.png",plays:170675732},
@@ -927,6 +928,81 @@ LYRICS["location-dave-burna-boy"] = [
   [218.92,"If you send me the location"],[221.56,"Then I'll be right there"],[223.19,"And make I come check you, my baby"],[225.48,"No time, no"],[227.69,"And my dawg is on probation"],[230.25,"Another five years"],[231.90,"Mi bring girls to his location"],[234.20,"No time, no"]
 ];
 
+LYRICS["sprinter-dave-central-cee"] = [
+  [7.71,"The mandem too inconsiderate, five-star hotel, smokin' cigarette"],
+  [10.90,"Mixin' codeine up with the phenergan, she got thick, but she wanna get thin again"],
+  [14.32,"Drinkin' apple cider vinegar, wearin' Skim 'cause she wanna be Kim and 'em"],
+  [17.81,"Uh, alright, I know that you're bad, stop actin' innocent"],
+  [21.37,"We ain't got generational wealth, it's only a year that I've had these millions"],
+  [25.40,"My whip could've been in the Tokyo Drift cah it's fast and furious"],
+  [28.01,"I went from the Toyota Yaris to Urus, they had their chance but blew it"],
+  [31.72,"Now this gyal wan' me in her uterus, fuck it, I'm rich, let's do it"],
+  [34.82,"Take a look at these diamonds wrong, it's a life of squintin', can't just stare"],
+  [38.24,"With bae through thick and thin, she already thick, so I'm halfway there"],
+  [41.93,"Brown and bad, couldn't change my mind, I was halfway there"],
+  [45.15,"One hundred meters, huh, I just put nine gyal in a Sprinter"],
+  [49.48,"One hundred eaters, they won't fit in one SUV, nah"],
+  [53.16,"S-O-S, somebody rescue me"],
+  [55.48,"I got too many gyal, too many-many gyal, I got, they can last me the next two weeks, uh"],
+  [60.05,"Huh, alright, like send the address through, please"],
+  [62.69,"SUV, the outside white"],
+  [64.25,"The inside brown like Michael Jack'"],
+  [66.10,"More time, man build a line and trap"],
+  [67.78,"Spend like I don't even like my stack"],
+  [69.53,"Pistol came on a Irish ferry"],
+  [71.05,"Let go and it sound like a tap dance"],
+  [72.88,"The way that I ball, no yellow"],
+  [74.58,"The ref haffa give me a black card"],
+  [76.23,"Who did what we doin' with rap?"],
+  [78.18,"Man couldn't sell out his show after all them years of doin' the cap"],
+  [81.14,"Sprinter, two gyal in a van"],
+  [82.96,"Inter, two man in Milan, heard one of my tings datin' P. Diddy"],
+  [86.20,"Need twenty percent of whatever she bags"],
+  [88.28,"Outside, my head in my hands"],
+  [90.66,"I told her my name is Cench, she said, \"No, the one on your birth certificate,\" uh"],
+  [94.51,"Your boyfriend ran from the diamond test 'cause they weren't legitimate, nah"],
+  [97.90,"She Turkish-Cypriot, but her curves Brazilian, uh"],
+  [101.52,"I want her, and bro wants her affiliate"],
+  [104.30,"I'm cheap, still hit a chick like, \"Yo, can I borrow your Netflix?\""],
+  [107.33,"She a feminist, she think I'm sexist, twistin' my words, I think she dyslexic"],
+  [110.57,"Give me my space, I'm intergalactic"],
+  [112.82,"Before I give you my Insta' password, I'll give you the pin to my AmEx, huh, alright"],
+  [117.99,"This ain't stainless steel, it's platinum, dinner table, I got manners, huh"],
+  [121.80,"T-shirt tucked in, napkin"],
+  [123.43,"\"Still loading,\" that's the caption, I've only amounted a minimal fraction"],
+  [126.78,"Eat good, I got indigestion"],
+  [128.48,"Bare snow in my hood, no Aspen, can't get rid of my pain with Aspirin"],
+  [132.19,"Dave just came in an Aston, I'm makin' that Maybach music"],
+  [135.43,"They're tryna insult my intelligence, sometimes, I may act stupid"],
+  [138.48,"I never went uni, I been on the campus sellin' cocaine to students"],
+  [141.92,"If bro let the drumstick beat, then somethin' gon' leak"],
+  [144.03,"We ain't playin' exclusives"],
+  [145.34,"Take a look at these diamonds wrong, it's a life of squintin', can't just stare"],
+  [148.72,"With bae through thick and thin, she already thick, so I'm halfway there"],
+  [152.45,"Brown and bad, couldn't change my mind, I was halfway there"],
+  [155.68,"One hundred meters, huh, I just put nine gyal in a Sprinter"],
+  [159.99,"One hundred eaters, they won't fit in one SUV, nah"],
+  [163.66,"S-O-S, somebody rescue me"],
+  [165.93,"I got too many gyal, too many-many gyal, I got, they can last me the next two weeks, uh"],
+  [170.50,"Huh, alright, like send the address through, please"],
+  [172.93,"Fire for a wife beater, can't rock with that, I ain't wearin' a vest"],
+  [176.19,"Man have to send her therapy, she got the E-cup bra, a lot on her chest"],
+  [179.62,"I'm in Jamaica, Oracabess', hit a lick, went cash converters"],
+  [183.13,"That don't work, it's pawn, no chess, I'm doin' more and talkin' less"],
+  [186.64,"I love chillin' with broke bitches"],
+  [188.06,"Man book one flight, and they're all impressed"],
+  [190.01,"I'm in the G63, the car hug me like a friend through twist and turns"],
+  [193.23,"Man livin' for nyash and dyin' for nyash"],
+  [194.98,"It's fucked, don't know which one's worse, I'm fucked"],
+  [197.34,"Bags in his and hers, what's hers is hers, what's mine is, too"],
+  [200.37,"Heard that girl is a gold digger, it can't be true if she dated you"],
+  [203.80,"AP baby blue, paper's pink, I'd probably hate me, too"],
+  [207.25,"You ever spent six figures and stared at bae like, \"Look what you made me do\""],
+  [211.15,"Yeah, alright, started with a Q, didn't wait in line"],
+  [214.16,"Weird, I'm askin' my Blasian one, \"Why you so focused on your Asian side?\""],
+  [217.90,"I know that the jack boys pray that they get to the clubs and Dave's inside"]
+];
+
 LYRICS["flowers-say-my-name-arrdee"] = [
   [6.19,"I don't give girls flowers"],[7.80,"I give you good wood though"],[9.30,"If you want me all for yourself"],[10.65,"Then, darlin', you probably should go"],[12.62,"There's no way I'ma stand in the rain"],[14.27,"I can still make you say my name"],[15.81,"Say my name, say my name"],[17.44,"Life without me might drive you insane"],
   [19.61,"I don't give girls flowers"],[21.38,"I give you good wood though"],[22.68,"If you want me all for yourself"],[24.06,"Then, darlin', you probably should go"],[26.01,"There's no way I'ma stand in the rain"],[27.76,"I can still make you say my name"],[29.21,"Say my name, say my name"],[30.91,"Life without me might drive you insane"],
@@ -1278,7 +1354,29 @@ const BACKEND_ENABLED = true;
 
 function resolveDiscordArtworkUrl(artwork) {
   if (typeof artwork !== "string" || !artwork.trim()) return "deluxetunes";
-  const relativePath = artwork.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  const value = artwork.trim();
+  if (/^https:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" ? url.toString() : "deluxetunes";
+    } catch {
+      return "deluxetunes";
+    }
+  }
+
+  let artworkPath = value;
+  if (/^file:/i.test(artworkPath)) {
+    try {
+      const pathname = new URL(artworkPath).pathname.replace(/\\/g, "/");
+      const imagesIndex = pathname.lastIndexOf("/images/");
+      if (imagesIndex < 0) return "deluxetunes";
+      artworkPath = pathname.slice(imagesIndex);
+    } catch {
+      return "deluxetunes";
+    }
+  }
+
+  const relativePath = artworkPath.replace(/\\/g, "/").replace(/^\/+/, "");
   if (!relativePath.startsWith("images/")) return "deluxetunes";
 
   const encodedPath = relativePath.split("/").map(segment => {
@@ -1287,7 +1385,7 @@ function resolveDiscordArtworkUrl(artwork) {
     return encodeURIComponent(decodedSegment).replace(/[!'()*]/g, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
   }).join("/");
   if (encodedPath.split("/").some(segment => segment === "." || segment === "..")) return "deluxetunes";
-  return `${API_BASE}/${encodedPath}`;
+  return `${API_BASE}/${encodedPath}?v=2`;
 }
 
 function openAuthWindow(url, title = 'deluxeTunesAuth') {
@@ -1359,6 +1457,7 @@ function App(){
   const [volume,setVolume]=useState(.78),[query,setQuery]=useState(""),[page,setPage]=useState("home");
   const [toast,setToast]=useState(""),[shuffle,setShuffle]=useState(false),[repeat,setRepeat]=useState(false),[showLyrics,setShowLyrics]=useState(false),[selectedArtist,setSelectedArtist]=useState(null),[selectedAlbum,setSelectedAlbum]=useState(null),[playbackReturnAlbum,setPlaybackReturnAlbum]=useState(null),[libraryTab,setLibraryTab]=useState("playlists"),[previousPage,setPreviousPage]=useState("home");
   const appSessionStartedAt=useRef(Date.now());
+  const deepLinkHandledRef=useRef(null);
   const albumTrackIds=new Set(ALBUMS_WITH_ASSETS.filter(album=>album.type==="album").flatMap(album=>album.trackIds||[]));
   const pageRef=useRef(page);
   const showLyricsRef=useRef(showLyrics);
@@ -1383,6 +1482,18 @@ function App(){
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.downloads,JSON.stringify(downloads)),[downloads]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.streak,JSON.stringify(streak)),[streak]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.theme,JSON.stringify(theme)),[theme]);
+  useEffect(()=>{
+    if(!account||deepLinkHandledRef.current) return;
+    const songId=new URLSearchParams(window.location.search).get("song");
+    const song=songId?songs.find(item=>item.id===songId):null;
+    if(!song) return;
+    deepLinkHandledRef.current=song.id;
+    setCurrent(song);
+    setDuration(Number(song.duration||song.length)||0);
+    setPage("lyrics");
+    setShowLyrics(false);
+    window.history.replaceState({dtPage:"lyrics",dtDepth:1,selectedArtist:null,selectedAlbum:null,returnAlbum:null,selectedPlaylistId:null,showLyrics:false},"",window.location.href);
+  },[account,songs]);
   useEffect(()=>{
     let cancelled=false;
     fetch(LATEST_RELEASE_API,{headers:{Accept:"application/vnd.github+json"}})
@@ -1989,9 +2100,10 @@ function App(){
   useEffect(()=>{
     const initial=window.history.state;
     const isStaleLyricsRoute = initial?.dtPage === "lyrics";
+    const hasSongDeepLink = new URLSearchParams(window.location.search).has("song");
     if(!initial?.dtPage){
       window.history.replaceState({dtPage:page,dtDepth:0},"",window.location.href);
-    } else if(isStaleLyricsRoute){
+    } else if(isStaleLyricsRoute&&!hasSongDeepLink){
       setPage("home");
       setShowLyrics(false);
       setPlaybackReturnAlbum(null);

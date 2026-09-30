@@ -21,7 +21,9 @@
     "desktop:build": "vite build",
     "desktop:dist": "npm run desktop:build && electron-builder --win --publish never",
     "server": "node server.mjs",
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "test:discord-release-webhook": "node server.mjs --test-discord-release-webhook",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

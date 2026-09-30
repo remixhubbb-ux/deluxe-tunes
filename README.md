@@ -101,6 +101,9 @@ SPOTIFY_REDIRECT_URI=http://localhost:8787/api/spotify/callback
 DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_CLIENT_SECRET=your_discord_client_secret
 DISCORD_REDIRECT_URI=http://localhost:8787/api/discord/callback
+# Configure this on the backend only; never use a VITE_ prefix or add it to frontend config.
+DISCORD_NEW_RELEASE_WEBHOOK_URL=
+APP_LINK_BASE=https://deluxetunesapp.pages.dev
 ```
 
 In production, set the same variables to the live HTTPS values instead of localhost.
@@ -115,6 +118,18 @@ In production, set the same variables to the live HTTPS values instead of localh
 - handles Spotify and Discord PKCE flows
 - exposes status endpoints for auth state
 - stores play statistics and user session data in a persistent backend
+- sends new-song Discord announcements from the backend using `DISCORD_NEW_RELEASE_WEBHOOK_URL`
+- publishes a generated `song-catalog.json` manifest from the frontend build and polls it from the backend at startup and every 60 seconds; it silently records the first catalogue as the baseline and announces later song IDs once
+
+For Render, set `DISCORD_NEW_RELEASE_WEBHOOK_URL` as a secret environment variable on the backend service (not in Vite, `VITE_*`, or frontend settings). Keep `DATABASE_URL` configured to a persistent PostgreSQL database: production announcement delivery is disabled without it because Render's instance filesystem is ephemeral. Set `APP_LINK_BASE` if the public app URL differs from the default; set `RELEASE_CATALOG_URL` only if its generated manifest is hosted elsewhere. Song links use `/?song=<song-id>` and open the matching track in the app. Adding a future bundled release to `DEMOS` and deploying the frontend publishes the updated manifest; the already-running backend detects it on its next poll (within about 60 seconds), without a Render backend restart. Spotify playlist imports are user-library additions, not release announcements.
+
+### Test the Discord webhook locally on Windows
+
+1. In the VS Code PowerShell terminal, create your local environment file from the safe template: `Copy-Item .env.example .env`.
+2. Open `.env` in VS Code and paste your webhook URL after `DISCORD_NEW_RELEASE_WEBHOOK_URL=`. Do not put the secret in a `VITE_` variable, source file, or chat. `.env` is excluded by `.gitignore`.
+3. Run `npm run test:discord-release-webhook` from the project folder.
+
+This sends exactly one clearly labelled test message. The test command does not initialize PostgreSQL, scan or modify the release baseline, or start the server. On success, the response reports the message and destination channel IDs. Check that message in Discord and confirm the channel ID corresponds to `#new-song-releases`; the webhook response alone does not resolve channel names.
 
 ## Build and release commands
 

@@ -1,5 +1,11 @@
 # Deluxe Tunes testing
 
+Run the automated regression suite with:
+
+```bash
+npm test
+```
+
 ## Normal app (full Deluxe Tunes interface)
 
 ```bash

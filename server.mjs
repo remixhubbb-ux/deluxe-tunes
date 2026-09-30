@@ -5,6 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import crypto from 'node:crypto';
 import pg from 'pg';
+import {createReleaseAnnouncementService,createReleaseCataloguePoller,fetchReleaseCatalog,MAX_WEBHOOK_ATTEMPTS,parseBundledSongCatalog,sendDiscordReleaseWebhookTest} from './releaseAnnouncements.mjs';
 
 const { Pool } = pg;
 
@@ -26,6 +27,10 @@ const DATABASE_URL = process.env.DATABASE_URL || null;
 const DATA_FILE = path.join(__dirname, 'data', 'plays.json');
 const SPOTIFY_SESSION_FILE = path.join(__dirname, 'data', 'spotify-auth.json');
 const DISCORD_SESSION_FILE = path.join(__dirname, 'data', 'discord-auth.json');
+const RELEASE_ANNOUNCEMENTS_FILE = path.join(__dirname, 'data', 'release-announcements.json');
+const DISCORD_NEW_RELEASE_WEBHOOK_URL = process.env.DISCORD_NEW_RELEASE_WEBHOOK_URL || '';
+const APP_LINK_BASE = (process.env.APP_LINK_BASE || 'https://deluxetunesapp.pages.dev').replace(/\/+$/, '');
+const RELEASE_CATALOG_URL = process.env.RELEASE_CATALOG_URL || new URL('/song-catalog.json', APP_LINK_BASE).toString();
 const APP_ORIGIN = (process.env.APP_ORIGIN || process.env.VITE_APP_ORIGIN || `http://localhost:${PORT}`).replace(/\/+$/, '');
 const OAUTH_BASE_URL = (process.env.OAUTH_BASE_URL || process.env.API_BASE_URL || APP_ORIGIN || `http://localhost:${PORT}`).replace(/\/+$/, '');
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || new URL('/api/discord/callback', OAUTH_BASE_URL).toString();
@@ -220,6 +225,28 @@ async function initDatabase() {
         meta JSONB NOT NULL DEFAULT '{}'::jsonb,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS release_announcements (
+        song_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        artwork_url TEXT,
+        app_url TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TIMESTAMPTZ,
+        last_error TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE release_announcements ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE release_announcements ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMPTZ;
+      ALTER TABLE release_announcements ADD COLUMN IF NOT EXISTS last_error TEXT;
+
+      CREATE TABLE IF NOT EXISTS release_announcement_state (
+        singleton_id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton_id),
+        initialized_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
   } finally {
     client.release();
@@ -410,6 +437,142 @@ function json(res,status,payload){
 }
 function html(res,status,body){res.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(body);}
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));}
+
+let releaseFileQueue = Promise.resolve();
+function withReleaseFileLock(action){
+  const current = releaseFileQueue.then(action, action);
+  releaseFileQueue = current.catch(()=>{});
+  return current;
+}
+async function readReleaseAnnouncementFile(){
+  try{return JSON.parse(await fs.readFile(RELEASE_ANNOUNCEMENTS_FILE,'utf8'));}
+  catch{return {initialized:false,songs:{}};}
+}
+async function writeReleaseAnnouncementFile(data){
+  await fs.mkdir(path.dirname(RELEASE_ANNOUNCEMENTS_FILE),{recursive:true});
+  const tmp=RELEASE_ANNOUNCEMENTS_FILE+'.tmp';
+  await fs.writeFile(tmp,JSON.stringify(data,null,2));
+  await fs.rename(tmp,RELEASE_ANNOUNCEMENTS_FILE);
+}
+
+const releaseAnnouncementStore = {
+  async initializeBaseline(songs){
+    const pool=await getDatabasePool();
+    if(pool){
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)',[78310429]);
+        const state=await client.query('SELECT singleton_id FROM release_announcement_state WHERE singleton_id=TRUE');
+        if(state.rowCount){await client.query('COMMIT');return false;}
+        for(const song of songs){
+          await client.query(
+            `INSERT INTO release_announcements (song_id,title,artist,artwork_url,app_url,status)
+             VALUES ($1,$2,$3,$4,$5,'baseline') ON CONFLICT (song_id) DO NOTHING`,
+            [song.id,song.title,song.artist,song.artwork,song.appUrl]
+          );
+        }
+        await client.query('INSERT INTO release_announcement_state (singleton_id) VALUES (TRUE)');
+        await client.query('COMMIT');
+        console.log('[Discord releases] initial catalogue recorded without announcements',{songs:songs.length});
+        return true;
+      }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
+      finally{client.release();}
+    }
+    return withReleaseFileLock(async()=>{
+      const data=await readReleaseAnnouncementFile();
+      if(data.initialized)return false;
+      data.songs=Object.fromEntries(songs.map(song=>[song.id,{...song,status:'baseline'}]));
+      data.initialized=true;
+      await writeReleaseAnnouncementFile(data);
+      console.log('[Discord releases] initial catalogue recorded without announcements',{songs:songs.length});
+      return true;
+    });
+  },
+  async claim(song,now=Date.now()){
+    const pool=await getDatabasePool();
+    if(pool){
+      const inserted=await pool.query(
+        `INSERT INTO release_announcements (song_id,title,artist,artwork_url,app_url,status,attempt_count)
+         VALUES ($1,$2,$3,$4,$5,'sending',1) ON CONFLICT (song_id) DO NOTHING RETURNING attempt_count`,
+        [song.id,song.title,song.artist,song.artwork,song.appUrl]
+      );
+      if(inserted.rowCount)return {attemptCount:Number(inserted.rows[0].attempt_count)||1};
+      const retry=await pool.query(
+        `UPDATE release_announcements SET title=$2,artist=$3,artwork_url=$4,app_url=$5,status='sending',
+           attempt_count=attempt_count+1,next_attempt_at=NULL,updated_at=NOW()
+         WHERE song_id=$1 AND status='failed' AND (next_attempt_at IS NULL OR next_attempt_at<=NOW()) AND attempt_count<$6
+         RETURNING attempt_count`,
+        [song.id,song.title,song.artist,song.artwork,song.appUrl,MAX_WEBHOOK_ATTEMPTS]
+      );
+      return retry.rowCount?{attemptCount:Number(retry.rows[0].attempt_count)||1}:false;
+    }
+    return withReleaseFileLock(async()=>{
+      const data=await readReleaseAnnouncementFile();
+      const existing=data.songs?.[song.id];
+      const due=existing?.status==='failed'&&Number(existing.nextAttemptAt)<=now;
+      if(existing && (!due || Number(existing.attemptCount)>=MAX_WEBHOOK_ATTEMPTS))return false;
+      const attemptCount=(Number(existing?.attemptCount)||0)+1;
+      data.songs={...(data.songs||{}),[song.id]:{...song,...song,status:'sending',attemptCount,nextAttemptAt:null}};
+      await writeReleaseAnnouncementFile(data);
+      return {attemptCount};
+    });
+  },
+  async setStatus(songId,status,details={}){
+    const pool=await getDatabasePool();
+    if(pool){
+      await pool.query(
+        `UPDATE release_announcements SET status=$2,attempt_count=COALESCE($3,attempt_count),
+           next_attempt_at=$4,last_error=$5,updated_at=NOW() WHERE song_id=$1`,
+        [songId,status,details.attemptCount??null,details.nextAttemptAt?new Date(details.nextAttemptAt):null,details.error||null]
+      );
+      return;
+    }
+    await withReleaseFileLock(async()=>{
+      const data=await readReleaseAnnouncementFile();
+      if(data.songs?.[songId]){
+        const previous=data.songs[songId];
+        data.songs[songId]={...previous,status,attemptCount:details.attemptCount??previous.attemptCount??0,
+          nextAttemptAt:details.nextAttemptAt??null,lastError:details.error||null};
+      }
+      await writeReleaseAnnouncementFile(data);
+    });
+  },
+  markSent(songId,details){return this.setStatus(songId,'sent',details);},
+  markRetryable(songId,details){return this.setStatus(songId,'failed',details);},
+  markRejected(songId,details){return this.setStatus(songId,'rejected',details);},
+  markUncertain(songId,details){return this.setStatus(songId,'uncertain',details);},
+};
+
+const releaseAnnouncementService=createReleaseAnnouncementService({
+  store:releaseAnnouncementStore,
+  webhookUrl:DISCORD_NEW_RELEASE_WEBHOOK_URL,
+  appLinkBase:APP_LINK_BASE,
+});
+
+const productionNeedsDatabase=process.env.RENDER==='true'||process.env.NODE_ENV==='production';
+async function announceNewBundledSongs(){
+  if(!releaseAnnouncementService.configured)return;
+  if(productionNeedsDatabase&&!DATABASE_URL){
+    console.error('[Discord releases] announcements require DATABASE_URL on production to keep deduplication durable');
+    return;
+  }
+  try{
+    const songs=productionNeedsDatabase
+      ? await fetchReleaseCatalog(RELEASE_CATALOG_URL)
+      : parseBundledSongCatalog(await fs.readFile(path.join(__dirname,'src','main.jsx'),'utf8'));
+    const result=await releaseAnnouncementService.announceCatalog(songs);
+    console.log('[Discord releases] catalogue scan complete',{baseline:result.baseline,announced:result.announced});
+  }catch(error){
+    console.error('[Discord releases] catalogue scan failed',error?.message||'Unknown error');
+  }
+}
+const releaseCataloguePoller=createReleaseCataloguePoller({
+  scan:announceNewBundledSongs,
+  intervalMs:60_000,
+  enabled:releaseAnnouncementService.configured&&(!productionNeedsDatabase||Boolean(DATABASE_URL)),
+});
+let shutdownRequested=false;
 
 const server=http.createServer(async (req,res)=>{
   const requestUrl=new URL(req.url,`http://${req.headers.host||'localhost'}`);
@@ -681,6 +844,31 @@ const server=http.createServer(async (req,res)=>{
   }
   json(res,404,{error:'Not found'});
 });
+async function shutdown(signal){
+  if(shutdownRequested)return;
+  shutdownRequested=true;
+  const stopPolling=releaseCataloguePoller.stop();
+  console.log(`[Server] ${signal} received; stopping release scans and closing cleanly`);
+  const forceExit=setTimeout(()=>{
+    console.error('[Server] graceful shutdown timed out');
+    process.exit(1);
+  },15000);
+  forceExit.unref?.();
+  try{
+    const serverClosed=new Promise(resolve=>{
+      if(!server.listening){resolve();return;}
+      server.close(()=>resolve());
+    });
+    await Promise.all([stopPolling,serverClosed]);
+    if(dbPool)await dbPool.end();
+    clearTimeout(forceExit);
+  }catch(error){
+    console.error('[Server] graceful shutdown failed',error?.message||'Unknown error');
+    process.exitCode=1;
+  }
+}
+process.once('SIGTERM',()=>{void shutdown('SIGTERM');});
+process.once('SIGINT',()=>{void shutdown('SIGINT');});
 async function initSpotifySession(){
   spotifyAuth = await readSpotifySession();
   if (spotifyAuth) {
@@ -691,6 +879,26 @@ async function initSpotifySession(){
     });
   }
 }
-await initDatabase();
-await initSpotifySession();
-server.listen(PORT, HOST, ()=>console.log(`Deluxe Tunes server listening on http://${HOST}:${PORT}`));
+const isDiscordWebhookTest=process.argv.includes('--test-discord-release-webhook');
+if(isDiscordWebhookTest){
+  try{
+    const result=await sendDiscordReleaseWebhookTest({webhookUrl:DISCORD_NEW_RELEASE_WEBHOOK_URL});
+    console.log('[Discord webhook test] one clearly labelled message was accepted',result);
+  }catch(error){
+    console.error('[Discord webhook test] failed:',error?.message||'Unknown error');
+    process.exitCode=1;
+  }
+  await dbPool?.end();
+}else{
+  await initDatabase();
+  await initSpotifySession();
+  if(releaseAnnouncementService.configured&&productionNeedsDatabase&&!DATABASE_URL){
+    console.error('[Discord releases] announcements require DATABASE_URL on production to keep deduplication durable');
+  }else{
+    await releaseCataloguePoller.scan();
+  }
+  if(!shutdownRequested)server.listen(PORT, HOST, ()=>{
+    console.log(`Deluxe Tunes server listening on http://${HOST}:${PORT}`);
+    releaseCataloguePoller.start();
+  });
+}
