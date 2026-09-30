@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseBundledSongCatalog } from './releaseAnnouncements.mjs';
 
 function releaseCatalogManifestPlugin() {
@@ -26,6 +27,14 @@ function releaseCatalogManifestPlugin() {
 export default defineConfig({
   base: './',
   plugins: [react(), releaseCatalogManifestPlugin()],
+  build: {
+    rollupOptions: {
+      input: {
+        index: resolve(__dirname, 'index.html'),
+        app: resolve(__dirname, 'app.html'),
+      },
+    },
+  },
   server: {
     host: 'localhost',
     port: 5173,

@@ -1,7 +1,7 @@
 {
   "name":"Deluxe Tunes",
   "short_name":"Deluxe Tunes",
-  "start_url":"/app",
+  "start_url":"/app.html",
   "scope":"/",
   "display":"standalone",
   "background_color":"#05080b",

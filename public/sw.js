@@ -2,6 +2,7 @@ const CACHE_NAME = "deluxe-tunes-offline-v1";
 const APP_SHELL = [
   "/",
   "/index.html",
+  "/app.html",
   "/manifest.webmanifest",
   "/logo.png"
 ];
@@ -36,6 +37,17 @@ async function cacheFirst(request) {
     return response;
   } catch {
     return cached || Response.error();
+  }
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return (await cache.match(request)) || Response.error();
   }
 }
 
@@ -99,6 +111,13 @@ self.addEventListener("fetch", event => {
 
   if (url.pathname.startsWith("/audio/")) {
     event.respondWith(handleAudio(request));
+    return;
+  }
+
+  // Always prefer the deployed document so an older cached preview cannot
+  // replace the restored download homepage. Keep the latest document offline.
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request));
     return;
   }
 
