@@ -30,6 +30,7 @@ client secrets/
 /data/spotify-auth.json
 data/discord-auth.json
 data/spotify-auth.json
+data/release-announcements.json
 
 android/app/build/
 dist/

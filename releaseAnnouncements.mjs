@@ -54,29 +54,28 @@ export function normalizeReleaseSong(song = {}, appLinkBase = DEFAULT_APP_LINK_B
     } catch {}
   }
 
-  const appUrl = new URL('/', appLinkBase);
-  appUrl.searchParams.set('song', id);
   return {
     id,
     title: title.slice(0, 180),
     artist: artist.slice(0, 180),
     artwork,
-    appUrl: appUrl.toString(),
+    appUrl: new URL('/', appLinkBase).toString(),
   };
 }
 
 export function buildReleaseWebhookPayload(song) {
   const escapeMarkdown = value => String(value).replace(/([\\_*`~|>])/g, '\\$1');
   const embed = {
+    author: { name: 'DELUXE TUNES  •  NEW RELEASE' },
     title: `🎵 ${song.title}`.slice(0, 256),
-    description: `by **${escapeMarkdown(song.artist)}**\n\n[Open in Deluxe Tunes](${song.appUrl})`,
+    description: `**${escapeMarkdown(song.artist)}**\n\n[▶ Open in Deluxe Tunes](${song.appUrl})`,
     url: song.appUrl,
     color: 0xb7ff3c,
-    footer: { text: 'Deluxe Tunes • New Release' },
+    footer: { text: 'DELUXE TUNES  •  FRESH MUSIC' },
   };
-  if (song.artwork) embed.thumbnail = { url: song.artwork };
+  if (song.artwork) embed.image = { url: song.artwork };
   return {
-    content: '🆕 A new song has arrived on Deluxe Tunes!',
+    content: '🆕 **New release**',
     embeds: [embed],
     allowed_mentions: { parse: [] },
   };

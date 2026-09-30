@@ -20,6 +20,8 @@ assert.deepEqual(bundledCatalogue[0], {
   artist: 'Dave x Stormzy',
   artwork: '/images/clash-dave-stormzy.png',
 });
+assert.ok(bundledCatalogue.some(song => song.id === 'sprinter-dave-central-cee'), 'generated catalogue source should retain Sprinter');
+assert.deepEqual(Object.keys(bundledCatalogue[0]).sort(), ['artist', 'artwork', 'id', 'title'], 'catalogue schema should remain unchanged');
 
 function createMemoryStore(now = () => Date.now()) {
   const songs = new Map();
@@ -93,8 +95,13 @@ assert.equal(requests.length, 1, 'a repeated sync or backend service restart mus
 assert.equal(requests[0].url, 'https://discord.example/webhook/secret-token', 'the backend should deliver directly to its configured webhook');
 assert.equal(requests[0].body.embeds[0].title, '🎵 Future Release');
 assert.match(requests[0].body.embeds[0].description, /New Artist/);
-assert.equal(requests[0].body.embeds[0].thumbnail.url, 'https://deluxetunesapp.pages.dev/images/future-release.png');
-assert.equal(requests[0].body.embeds[0].url, 'https://deluxetunesapp.pages.dev/?song=future-release-2026');
+assert.equal(requests[0].body.embeds[0].author.name, 'DELUXE TUNES  •  NEW RELEASE');
+assert.equal(requests[0].body.embeds[0].image.url, 'https://deluxetunesapp.pages.dev/images/future-release.png');
+assert.equal('thumbnail' in requests[0].body.embeds[0], false, 'large album artwork should use Discord image rendering, not a tiny thumbnail');
+assert.equal(requests[0].body.embeds[0].url, 'https://deluxetunesapp.pages.dev/');
+assert.match(requests[0].body.embeds[0].description, /\[▶ Open in Deluxe Tunes\]\(https:\/\/deluxetunesapp\.pages\.dev\/\)/);
+assert.doesNotMatch(JSON.stringify(requests[0].body), /\?song=/, 'announcement payload must not link to a song-specific query URL');
+assert.equal(requests[0].body.embeds[0].footer.text, 'DELUXE TUNES  •  FRESH MUSIC');
 assert.deepEqual(requests[0].body.allowed_mentions, { parse: [] });
 assert.equal(JSON.stringify(await service.announceCatalog(nextCatalogue)).includes('secret-token'), false, 'service results must not expose the webhook URL');
 
@@ -119,6 +126,7 @@ assert.equal(backfillPosts.length, 1, 'targeted baseline promotion must remain o
 const noArtwork = normalizeReleaseSong({ id: 'plain-track', title: 'Plain Track', artist: 'Artist' }, appLinkBase);
 assert.equal(noArtwork.artwork, null);
 assert.equal('thumbnail' in buildReleaseWebhookPayload(noArtwork).embeds[0], false, 'artwork should be omitted when unavailable');
+assert.equal('image' in buildReleaseWebhookPayload(noArtwork).embeds[0], false, 'embed image should be omitted when artwork is unavailable');
 assert.equal(normalizeReleaseSong({ id: 'bad/id', title: 'Invalid', artist: 'Artist' }, appLinkBase), null);
 
 let testWebhookCallCount = 0;
