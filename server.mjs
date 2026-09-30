@@ -587,6 +587,7 @@ async function announceNewBundledSongs(){
       error?.message || 'Unknown error'
     );
   }
+}
 const releaseCataloguePoller=createReleaseCataloguePoller({
   scan:announceNewBundledSongs,
   intervalMs:60_000,
@@ -935,4 +936,4 @@ if(isDiscordWebhookTest){
     console.error('[STARTUP FAILED]', error?.stack || error?.message || error);
     process.exit(1);
   }
-}}
+}
