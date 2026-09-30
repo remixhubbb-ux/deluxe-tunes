@@ -938,5 +938,4 @@ if(isDiscordWebhookTest){
     console.error('[STARTUP FAILED]', error?.stack || error?.message || error);
     process.exit(1);
   }
-}}
-}
+}}}
