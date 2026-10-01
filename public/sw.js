@@ -1,4 +1,4 @@
-const CACHE_NAME = "deluxe-tunes-offline-v1";
+const CACHE_NAME = "deluxe-tunes-offline-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -58,12 +58,20 @@ async function handleAudio(request) {
   const cache = await caches.open(CACHE_NAME);
   const url = new URL(request.url);
   const key = new Request(url.href, { method: "GET" });
+  const isAudioResponse = response => (response?.headers.get("Content-Type") || "").toLowerCase().startsWith("audio/");
   let full = await cache.match(key);
+
+  // Older builds could cache the SPA's HTML fallback as if it were an MP3.
+  // Drop those poisoned entries and fetch the actual media again.
+  if (full && !isAudioResponse(full)) {
+    await cache.delete(key);
+    full = null;
+  }
 
   if (!full) {
     try {
       const response = await fetch(key);
-      if (!response.ok) return response;
+      if (!response.ok || !isAudioResponse(response)) return response;
       await cache.put(key, response.clone());
       full = response;
     } catch {
