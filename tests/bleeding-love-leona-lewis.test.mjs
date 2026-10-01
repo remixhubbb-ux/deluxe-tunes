@@ -17,6 +17,7 @@ assert.deepEqual(matches[0], {
 });
 assert.match(source, /id:"bleeding-love-leona-lewis",title:"Bleeding Love",artist:"Leona Lewis",album:""[^\n]*plays:1199105814/, 'Bleeding Love should appear in Leona Lewis’s songs with the supplied play count');
 assert.match(source, /file:"\/audio\/Bleeding Love - leona lewis\.mp3"/);
+assert.match(source, /id:"bleeding-love-leona-lewis"[^\n]*length:262\.95/, 'catalogue duration should match the updated audio file');
 assert.equal(existsSync(join(root, 'public', 'audio', 'Bleeding Love - leona lewis.mp3')), true, 'the referenced MP3 should exist');
 assert.equal(existsSync(join(root, 'public', 'images', 'bleeding-love-leona-lewis.png')), true, 'the cover artwork should exist');
 
