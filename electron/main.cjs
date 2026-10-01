@@ -126,7 +126,7 @@ function startLocalServer() {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, '..', 'public', 'logo.ico');
+  const iconPath = path.join(__dirname, '..', 'dist', 'logo.ico');
   const window = new BrowserWindow({
     width: 1440,
     height: 920,

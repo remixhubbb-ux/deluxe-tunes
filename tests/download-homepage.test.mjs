@@ -14,11 +14,12 @@ const webManifest = readFileSync(join(root, 'public', 'manifest.webmanifest'), '
 assert.match(homepage, /href="deluxe-tunes-logo\.png"/, 'restored homepage should use the ZIP logo');
 assert.match(homepage, /href="style\.css"/, 'restored homepage should use the ZIP stylesheet');
 assert.match(homepage, /id="androidDownload"[^>]+deluxetunes\.apk/, 'Android APK download link should remain in the homepage');
-assert.match(homepage, /id="windowsDownload"[^>]+Deluxe-Tunes-Setup\.exe/, 'Windows installer download link should remain in the homepage');
+assert.match(homepage, /id="windowsDownload"[^>]+Deluxe-Tunes-Setup-v8\.1\.7\.exe/, 'Windows installer download link should target the 8.1.7 installer');
 assert.doesNotMatch(homepage, /src="\/src\/main\.jsx"/, 'the public homepage must not mount the preview React app');
 assert.match(appShell, /src="\/src\/main\.jsx"/, 'the React app remains available as a separate entry');
 assert.match(viteConfig, /fileName: 'song-catalog\.json'/, 'Vite must continue generating the live catalogue asset');
 assert.match(electronMain, /dist', 'app\.html'/, 'Electron should open the React player entry');
+assert.match(electronMain, /path\.join\(__dirname, '\.\.', 'dist', 'logo\.ico'\)/, 'Electron should use the packaged ICO for the window and taskbar icon');
 assert.match(capacitorConfig, /appStartPath:\s*"\/app\.html"/, 'Capacitor should launch the React player entry');
 assert.match(webManifest, /"start_url":"\/app\.html"/, 'PWA installs should launch the React player entry');
 assert.match(serviceWorker, /"\/app\.html"/, 'offline app shell should include the React player entry');
