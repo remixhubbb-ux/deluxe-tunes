@@ -93,15 +93,21 @@ assert.equal((await firstNewReleaseService.announceCatalog(nextCatalogue)).annou
 assert.equal((await service.announceCatalog(nextCatalogue)).announced, 0);
 assert.equal(requests.length, 1, 'a repeated sync or backend service restart must not duplicate the announcement');
 assert.equal(requests[0].url, 'https://discord.example/webhook/secret-token', 'the backend should deliver directly to its configured webhook');
-assert.equal(requests[0].body.embeds[0].title, '🎵 Future Release');
-assert.match(requests[0].body.embeds[0].description, /New Artist/);
-assert.equal(requests[0].body.embeds[0].author.name, 'DELUXE TUNES  •  NEW RELEASE');
+assert.equal(requests[0].body.embeds[0].title, '✨ A fresh release just landed');
+assert.match(requests[0].body.embeds[0].description, /Discover something new, press play/);
+assert.equal(requests[0].body.embeds[0].author.name, 'DELUXE TUNES  •  FRESH DROP');
 assert.equal(requests[0].body.embeds[0].image.url, 'https://deluxetunesapp.pages.dev/images/future-release.png');
-assert.equal('thumbnail' in requests[0].body.embeds[0], false, 'large album artwork should use Discord image rendering, not a tiny thumbnail');
+assert.equal(requests[0].body.embeds[0].thumbnail.url, 'https://deluxetunesapp.pages.dev/logo-256.png', 'the Deluxe Tunes logo should brand the embed thumbnail');
+assert.deepEqual(requests[0].body.embeds[0].fields, [
+  { name: 'TRACK', value: 'Future Release', inline: true },
+  { name: 'ARTIST', value: 'New Artist', inline: true },
+  { name: 'STATUS', value: '🟢 Available now', inline: true },
+]);
 assert.equal(requests[0].body.embeds[0].url, 'https://deluxetunesapp.pages.dev/');
-assert.match(requests[0].body.embeds[0].description, /\[▶ Open in Deluxe Tunes\]\(https:\/\/deluxetunesapp\.pages\.dev\/\)/);
+assert.match(requests[0].body.embeds[0].description, /\[▶ Listen in Deluxe Tunes\]\(https:\/\/deluxetunesapp\.pages\.dev\/\)/);
 assert.doesNotMatch(JSON.stringify(requests[0].body), /\?song=/, 'announcement payload must not link to a song-specific query URL');
-assert.equal(requests[0].body.embeds[0].footer.text, 'DELUXE TUNES  •  FRESH MUSIC');
+assert.equal(requests[0].body.embeds[0].footer.text, 'YOUR MUSIC  •  YOUR VIBE  •  ALL IN ONE PLACE');
+assert.match(requests[0].body.content, /A new release has arrived on Deluxe Tunes/);
 assert.deepEqual(requests[0].body.allowed_mentions, { parse: [] });
 assert.equal(JSON.stringify(await service.announceCatalog(nextCatalogue)).includes('secret-token'), false, 'service results must not expose the webhook URL');
 
@@ -119,14 +125,14 @@ assert.equal(backfillPosts.length, 0, 'baseline-only initialization remains sile
 const targetedResult = await backfillService.announceCatalog(previouslyBaselined, { announceBaselineIds: [addedSong.id] });
 assert.equal(targetedResult.announced, 1, 'an explicit ID may be safely promoted from baseline to announced');
 assert.equal(backfillPosts.length, 1);
-assert.equal(backfillPosts[0].embeds[0].title, '🎵 Future Release');
+assert.equal(backfillPosts[0].embeds[0].title, '✨ A fresh release just landed');
 assert.equal((await backfillService.announceCatalog(previouslyBaselined, { announceBaselineIds: [addedSong.id] })).announced, 0);
 assert.equal(backfillPosts.length, 1, 'targeted baseline promotion must remain one-time across future scans');
 
 const noArtwork = normalizeReleaseSong({ id: 'plain-track', title: 'Plain Track', artist: 'Artist' }, appLinkBase);
 assert.equal(noArtwork.artwork, null);
-assert.equal('thumbnail' in buildReleaseWebhookPayload(noArtwork).embeds[0], false, 'artwork should be omitted when unavailable');
-assert.equal('image' in buildReleaseWebhookPayload(noArtwork).embeds[0], false, 'embed image should be omitted when artwork is unavailable');
+assert.equal(buildReleaseWebhookPayload(noArtwork).embeds[0].thumbnail.url, `${appLinkBase}/logo-256.png`, 'brand logo should remain even when song artwork is unavailable');
+assert.equal('image' in buildReleaseWebhookPayload(noArtwork).embeds[0], false, 'large song artwork should be omitted when unavailable');
 assert.equal(normalizeReleaseSong({ id: 'bad/id', title: 'Invalid', artist: 'Artist' }, appLinkBase), null);
 
 let testWebhookCallCount = 0;

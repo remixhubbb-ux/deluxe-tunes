@@ -66,16 +66,22 @@ export function normalizeReleaseSong(song = {}, appLinkBase = DEFAULT_APP_LINK_B
 export function buildReleaseWebhookPayload(song) {
   const escapeMarkdown = value => String(value).replace(/([\\_*`~|>])/g, '\\$1');
   const embed = {
-    author: { name: 'DELUXE TUNES  •  NEW RELEASE' },
-    title: `🎵 ${song.title}`.slice(0, 256),
-    description: `**${escapeMarkdown(song.artist)}**\n\n[▶ Open in Deluxe Tunes](${song.appUrl})`,
+    author: { name: 'DELUXE TUNES  •  FRESH DROP' },
+    title: '✨ A fresh release just landed',
+    description: `A fresh track has just landed in the Deluxe Tunes catalogue.\n\nDiscover something new, press play, and make it part of your rotation.\n\n[▶ Listen in Deluxe Tunes](${song.appUrl})`,
+    fields: [
+      { name: 'TRACK', value: escapeMarkdown(song.title), inline: true },
+      { name: 'ARTIST', value: escapeMarkdown(song.artist), inline: true },
+      { name: 'STATUS', value: '🟢 Available now', inline: true },
+    ],
     url: song.appUrl,
     color: 0xb7ff3c,
-    footer: { text: 'DELUXE TUNES  •  FRESH MUSIC' },
+    footer: { text: 'YOUR MUSIC  •  YOUR VIBE  •  ALL IN ONE PLACE' },
   };
   if (song.artwork) embed.image = { url: song.artwork };
+  embed.thumbnail = { url: new URL('/logo-256.png', song.appUrl).toString() };
   return {
-    content: '🆕 **New release**',
+    content: '✨ **A new release has arrived on Deluxe Tunes!**',
     embeds: [embed],
     allowed_mentions: { parse: [] },
   };
