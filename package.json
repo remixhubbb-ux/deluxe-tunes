@@ -1,7 +1,7 @@
 {
   "name": "deluxe-tunes",
   "private": true,
-  "version": "8.1.6",
+  "version": "8.1.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -61,7 +61,7 @@
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "Deluxe-Tunes-Setup.exe",
+      "artifactName": "Deluxe-Tunes-Setup-v${version}.exe",
       "icon": "public/logo.ico"
     },
     "nsis": {
@@ -78,5 +78,8 @@
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh"
     }
+  },
+  "allowScripts": {
+    "electron@38.8.6": true
   }
 }

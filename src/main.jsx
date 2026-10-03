@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import { matchSpotifyTrackToCatalog, normalizeSpotifyMatchText } from "./spotifyImport.js";
-import { calculateTasteProfile, canDownloadFromOrigin, isAppOnline, normalizePlaylistName, resolveAssetUrl } from "./appLogic.js";
+import { calculateTasteProfile, canDownloadFromOrigin, getUserPlayCount, isAppOnline, normalizePlaylistName, resolveAssetUrl } from "./appLogic.js";
 import { getLocalDateKey, getStreakMilestoneInfo, normalizeStreakState, updateStreakForListen } from "./streakLogic.js";
 
 let queueSongAction=()=>{};
@@ -164,9 +164,10 @@ const DEMOS = [
   {id:"run-leona-lewis",title:"Run",artist:"Leona Lewis",album:"",genre:"Pop",color:["#382d3d","#b7a2bd"],bpm:0,file:"/audio/Run - leona lewis.mp3",length:290,artwork:"/images/run-leona-lewis.png",plays:145327397},
   {id:"bleeding-love-leona-lewis",title:"Bleeding Love",artist:"Leona Lewis",album:"",genre:"Pop",color:["#382d3d","#b7a2bd"],bpm:0,file:"/audio/Bleeding Love - leona lewis.mp3",length:262.95,artwork:"/images/bleeding-love-leona-lewis.png",plays:1199105814},
   {id:"a-moment-like-this-leona-lewis",title:"A Moment Like This",artist:"Leona Lewis",album:"",genre:"Pop",color:["#382d3d","#b7a2bd"],bpm:0,file:"/audio/a moment like this - leona lewis.mp3",length:257.36,artwork:"/images/a-moment-like-this-leona-lewis.png",plays:55397940},
+  {id:"footprints-in-the-sand-leona-lewis",title:"Footprints in the Sand",artist:"Leona Lewis",album:"",genre:"Pop",color:["#382d3d","#b7a2bd"],bpm:0,file:"/audio/footprints in the sand - leona lewis.mp3",length:246.814,artwork:"/images/footprints-in-the-sand-leona-lewis.png",plays:195642308},
   {id:"you-are-the-reason-duet-leona-lewis-calum-scott",title:"You Are the Reason (Duet Version)",artist:"Leona Lewis x Calum Scott",album:"",genre:"Pop",color:["#382d3d","#b7a2bd"],bpm:0,file:"/audio/You Are The Reason - Duet Version - leona lewis, calum scott.mp3",length:190.85,artwork:"/images/you-are-the-reason-duet-leona-lewis-calum-scott.png",plays:336448124},
   {id:"sprinter-dave-central-cee",title:"Sprinter",artist:"Dave x Central Cee",album:"Sprinter",genre:"UK Rap",color:["#1b2520","#768579"],bpm:0,file:"/audio/Sprinter - Central Cee, Dave.mp3",length:229,artwork:"/images/sprinter-central-cee-dave.png",explicit:true,plays:1171359162},
-  {"id":"ufo-d-block-europe-aitch","title":"UFO","artist":"D-Block Europe x Aitch","album":"The Blueprint","genre":"UK Rap","color":["#0b4ea2","#4bc8ff"],"bpm":0,"file":"/audio/ufo-d-block-europe-aitch.mp3","length":204.04,"artwork":"/images/ufo-d-block-europe-aitch.png","plays":127433941},
+  {"id":"ufo-d-block-europe-aitch","title":"UFO","artist":"D-Block Europe x Aitch","album":"The Blueprint","genre":"UK Rap","color":["#0b4ea2","#4bc8ff"],"bpm":0,"file":"/audio/ufo-d-block-europe-aitch.mp3","length":204.04,"artwork":"/images/ufo-d-block-europe-aitch.png","plays":128096554},
   {id:"barbarian-juice-wrld",title:"Barbarian",artist:"Juice WRLD",album:"Barbarian",genre:"Rap",color:["#3b0a0a","#ef4444"],bpm:0,file:"/audio/Barbarian - Juice Wrld.mp3",length:152.5,artwork:"/images/barbarian-juice-wrld.png",explicit:true,plays:35493413},
   {id:"sienna-the-visitor",title:"The Visitor",artist:"SIENNA SPIRO",album:"The Visitor",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/the-visitor-sienna-spiro.mp3",length:229,artwork:"/images/the-visitor-sienna-spiro.png",plays:170675732},
   {id:"this-is-my-house-sienna-spiro",title:"This Is My House",artist:"SIENNA SPIRO",album:"Visitor (Deluxe)",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/This Is My House - sienna spiro.mp3",length:204,artwork:"/images/artist-sienna-spiro.jpg",plays:12391227},
@@ -178,7 +179,16 @@ const DEMOS = [
   {id:"sienna-die-on-this-hill",title:"Die On This Hill",artist:"SIENNA SPIRO",album:"Die On This Hill",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/Die On This Hill - Sienna Spiro.mp3",length:217,artwork:"/images/artist-sienna-spiro.jpg",plays:621803091},
   {id:"sienna-pure",title:"Pure",artist:"SIENNA SPIRO",album:"Pure",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/Pure - Sienna Spiro.mp3",length:219,artwork:"/images/artist-sienna-spiro.jpg",plays:67043240},
   {id:"sienna-material-lover",title:"Material Lover - from The Devil Wears Prada 2 Original Motion Picture",artist:"SIENNA SPIRO",album:"Material Lover",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/Material Lover from The Devil Wears Prada 2 Original Motion Picture - sienna spiro.mp3",length:178,artwork:"/images/artist-sienna-spiro.jpg",plays:126624543},
-  {id:"rain-aitch-aj-tracey",title:"Rain",artist:"Aitch x AJ Tracey ft. Tay Keith",album:"Rain",genre:"UK Rap",color:["#8b5cf6","#f97316"],bpm:0,file:"/audio/rain-aitch-aj-tracey-ft-tay-keith.mp3",length:185,artwork:"/images/rain-aitch-aj-tracey.png",plays:268214963},
+  {id:"rain-aitch-aj-tracey",title:"Rain",artist:"Aitch x AJ Tracey ft. Tay Keith",album:"Rain",genre:"UK Rap",color:["#8b5cf6","#f97316"],bpm:0,file:"/audio/rain-aitch-aj-tracey-ft-tay-keith.mp3",length:183,artwork:"/images/rain-aitch-aj-tracey.png",plays:268890712},
+  {id:"rmb-aitch",title:"RMB (Ring My Bell)",artist:"Aitch",album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/RMB (Ring My Bell) - aitch.mp3",length:174,artwork:"/images/rmb-(ring-my-bell)-aitch.png",plays:57978848},
+  {id:"bamba-bia-aitch",title:"Bamba (feat. Aitch & BIA)",artist:"Luciano, Aitch, BIA",featuredArtists:["Luciano","Aitch","BIA"],album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/Bamba (feat. Aitch & BIA).mp3",length:203,artwork:"/images/bamba-luciano-aitch-bia.png",explicit:true,plays:271283812},
+  {id:"psycho-aitch",title:"PSYCHO",artist:"Aitch, Anne-Marie",featuredArtists:["Anne-Marie"],album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/PSYCHO - aitch, anne-marie.mp3",length:162,artwork:"/images/psycho-aitch-anne-marie.png",explicit:true,plays:139683941},
+  {id:"rmb-polish-remix-aitch",title:"RMB (Ring My Bell) - Polish Remix",artist:"Aitch",album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/RMB (Ring My Bell) [Polish Remix] - aitch.mp3",length:176,artwork:"/images/rmb-(ring-my-bell)-polish-remix-aitch.png",plays:2706202},
+  {id:"baby-aitch-ashanti",title:"Baby (feat. Ashanti)",artist:"Aitch feat. Ashanti",featuredArtists:["Ashanti"],album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/Baby (feat. Ashanti) - aitch, ashanti.mp3",length:177,artwork:"/images/baby-aitch-ashanti.png",plays:141559390},
+  {id:"raving-in-the-studio-aitch",title:"Raving In The Studio",artist:"Aitch, Bou",featuredArtists:["Bou"],album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/Raving In The Studio - aitch, bou.mp3",length:183,artwork:"/images/raving-in-the-studio-aitch-bou.png",plays:33006204},
+  {id:"keisha-becky-remix-aitch",title:"Keisha & Becky - Remix",artist:"Russ Millions, Tion Wayne, Aitch, Swarmz, Sav'o, JAY1",album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/Russ x Tion Wayne Keisha Becky Remix ft Aitch JAY1 Sav O Swarmz.mp3",length:252,artwork:"/images/keisha-becky-aitch.png",plays:197623950},
+  {id:"rmb-german-remix-aitch",title:"RMB (Ring My Bell) - German Remix",artist:"Aitch",album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/RMB (Ring My Bell) - German Remix - aitch.mp3",length:176,artwork:"/images/rmb (ring my bell) [german remix] - aitch.jpg",plays:788797},
+  {id:"my-g-aitch-ed-sheeran",title:"My G",artist:"Aitch, Ed Sheeran",featuredArtists:["Ed Sheeran"],album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/My G - aitch, ed sheeran.mp3",length:192,artwork:"/images/my-g-aitch-ed-sheeran.png",plays:40944952},
   {id:"sienna-you-stole-the-show",title:"You Stole The Show",artist:"SIENNA SPIRO",album:"You Stole The Show",genre:"Pop",color:["#d9a7c7","#5b86e5"],bpm:0,file:"/audio/you-stole-the-show-sienna-spiro.mp3",length:207,artwork:"/images/sienna-spiro-you-stole-the-show.png",plays:212847314},
   {id:"sienna-maybe",title:"MAYBE.",artist:"SIENNA SPIRO",album:"MAYBE.",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/MAYBE. - sienna spiro.mp3",length:235,artwork:"/images/artist-sienna-spiro.jpg",plays:193763835},
   {id:"sienna-hes-not-my-baby-im-his",title:"He’s Not My Baby, I’m His",artist:"SIENNA SPIRO",album:"He’s Not My Baby, I’m His",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/He s Not My Baby I m His - sienna spiro.mp3",length:159,artwork:"/images/artist-sienna-spiro.jpg",plays:21512413},
@@ -910,6 +920,196 @@ const LYRICS = {
   "set-it-off-oneda": [[0, "You caught us, we're still working on getting lyrics for this one."]],
 };
 
+LYRICS["rmb-aitch"] = [
+  [0.33,"You can ring my bell, ring my bell"],[7.56,"You can ring my bell, ring my bell"],[14.66,"You can ring"],[16.31,"She like to pick and choose (whoo)"],[18.09,"New purses, different shoes"],[19.83,"New purchase, different dude"],[21.52,"Who's next in the kissin' booth? (You can ring my))"],[23.37,"She a lot, fit and rude (yeah)"],[24.92,"Got it boxed, stick a move"],[26.83,"On the top, lips and boobs"],[28.44,"Bottom half got different views (you can ring my)"],
+  [30.53,"She likes a man with cash"],[32.09,"Man with class, Daniels, Jacks"],[33.80,"New plate car with some standard chat"],[35.49,"Still, I can't wait to get hands on that (you can ring my) (okay)"],[38.26,"Options, not one man, she got options"],[40.86,"But I ain't insecure, baby, give me more"],[42.63,"Ring my bell with no problems"],[43.14,"You can ring my bell, ring my bell"],[48.24,"(You can ring my bell, you can ring my bell)"],[50.22,"You can ring my bell, ring my bell"],[55.17,"(You can ring my bell, you can ring my bell)"],
+  [59.08,"Plenty more fish in the sea"],[60.40,"Caught one, no more fishing for me"],[62.14,"Stuck to her phone, ain't sticking to me"],[63.60,"Shit, I don't think this one's fishing for free (you can ring my)"],[65.77,"She only posts in the club or the plane"],[67.56,"Location what city she be (whoop)"],[69.38,"Selfie mode, girl stuck in the frame"],[71.07,"Shame, she don't want a picture with me"],[72.73,"Don't play with the time"],[74.20,"Turn up late, gotta pay you a fine"],[75.94,"Drinks on the house, don't pay for a wine"],[77.90,"Rudeboy, better wait in the line (yeah)"],[80.02,"Rings, bags, hell"],[81.23,"She make it fling back well"],[83.04,"I'm tryna kiss and tell"],[84.74,"She told me ring my"],[85.91,"You can ring my bell, ring my bell"],[90.76,"(You can ring my bell, you can ring my bell)"],[92.98,"You can ring my bell, ring my bell"],[97.86,"(You can ring my bell, you can ring my bell)"],
+  [101.79,"You can ring my bell, you can ring my bell"],[104.87,"Ding dong, ding dong, ring it"],[108.45,"You can ring my bell, anytime, anywhere"],[111.88,"Ring it, ring it, ring it, ring it (ah)"],[115.44,"Rings, bags, hell"],[116.72,"She make it fling back well"],[118.62,"I'm tryna kiss and tell"],[120.38,"She told me ring my, ring my"],[122.57,"Rings, bags, hell"],[123.94,"She make it fling back well"],[125.66,"I'm tryna kiss and tell"],[127.45,"She told me"],[128.54,"You can ring my bell, ring my bell"],[133.40,"(You can ring my bell, you can ring my bell)"],[135.66,"You can ring my bell, ring my bell"],[140.71,"(You can ring my bell, you can ring my bell)"],[150.87,"Ha"],[152.74,"Huh?"],[154.38,"Whoop"],[156.71,"You can ring my bell, ring my bell"],[163.94,"You can ring my bell, ring my bell"]
+];
+
+LYRICS["bamba-bia-aitch"] = [
+  [7.01,"Babe, come on, vamo', shake your bamba"],[8.96,"Babe, vamo' danzar, auf Beat Backshots"],[10.76,"Viel Dollar, Dollar, komm, trink ein' Shot"],[12.46,"Tequila-Azul, komm, gib mein Glas"],[14.35,"International, guck, mein Babygyal"],[16.11,"GT3 durch Stadt, Aura Präsident"],[17.84,"Reich durch mein Talent, Loco dekadent"],[19.52,"Motherfucker-Flow wie Gunshots"],[21.22,""],
+  [21.22,"Babe, come on, vamo', shake your bamba"],[22.86,"Babe, vamo' danzar, auf Beat Backshots"],[24.62,"Viel Dollar, Dollar, komm, trink ein' Shot"],[26.32,"Tequila-Azul, komm, gib mein Glas"],[28.24,"International, guck, mein Babygyal"],[29.94,"GT3 durch Stadt, Aura Präsident"],[31.07,"Reich durch mein Talent, Loco dekadent"],[33.47,"Motherfucker-Flow wie Gunshots"],[35.07,""],
+  [35.07,"Babe, come on, vamo', shake your bamba"],[36.76,"Babe, vamo' danzar, auf Beat Backshots"],[38.57,"Viel Dollar, Dollar, komm, trink ein' Shot"],[40.19,"Tequila-Azul, komm, gib mein Glas"],[42.12,"International, guck, mein Babygyal"],[43.91,"GT3 durch Stadt, Aura Präsident"],[45.69,"Reich durch mein Talent, Loco dekadent"],[47.41,"Motherfucker-Flow wie Gunshots"],[48.58,"Yeah"],[49.34,""],[50.48,"Draped in cash"],[52.16,"You got drip, but the tunes don't stick cah the tape was wack"],[55.45,"On my usual shit with the cutest chick when I'm sailing past"],[59.03,"Got her boobies lifted"],[60.05,"And as for the booty, she paid some racks"],[61.75,"Look, I squeeze five tings in the backseat"],[63.61,"If I get chased, then I'm taking laps"],[65.63,"'016 got it tax free, now I can't say what I paid in tax, huh"],[69.23,"Drill beat, rap beat, trap beat, everyone's spun if there's Aitch on that"],[72.67,"Told these fuckers exactly, them man are my sons, I don't take it back"],[76.09,"Yeah, yeah"],[77.80,"Brand new Balenci' tracks what I'm buyin' my Munich ting"],[81.17,"And I might just buy her a bag, depending what mood I'm in"],[84.51,"Pull her hair out, hit it from the back, I make my girl lose her shit"],[87.64,"Got my head down, put in the work"],[89.03,"So wet, she making me lose my grip"],[90.72,""],
+  [90.72,"Babe, come on, vamo', shake your bamba"],[92.49,"Babe, vamo' danzar, auf Beat Backshots"],[94.20,"Viel Dollar, Dollar, komm, trink ein' Shot"],[95.96,"Tequila-Azul, komm, gib mein Glas"],[97.73,"International, guck, mein Babygyal"],[99.57,"GT3 durch Stadt, Aura Präsident"],[101.29,"Reich durch mein Talent, Loco dekadent"],[103.08,"Motherfucker-Flow wie Gunshots"],[104.76,""],
+  [106.12,"Gunshot, gunshot"],[106.97,"Smoke till my eyes get bloodshot"],[108.36,"I'm givin' glam in my mugshot"],[110.08,"I caught a buzz or whatnot"],[111.34,"I got some bands on headtops"],[113.02,"I'm choosing violence, we dragged him out by his dreadlocks"],[115.32,"They're tryna put me in wedlock"],[116.96,"I got his head in a leg lock"],[118.29,"It costs a bag just to hear me speak"],[119.96,"I caught a vibe with a sheikh"],[121.43,"I want a top shotta, this pussy not for the weak"],[123.88,"I'm never leavin' my peak"],[125.25,"Lock off, lock off, 458 with the top off"],[127.47,"He's the one that's getting dropped off"],[129.11,"Police on me, I will not stop"],[130.89,"You bitches all are my knock-offs"],[132.58,""],
+  [133.26,"I got enemies in my yard, I got Hennessy in my system"],[136.77,"But I ride with faith in God, so I'm never gonna be a victim"],[140.22,"I got enemies in my yard, I got Hennessy in my system"],[143.74,"But I ride with faith in God, so I'm never gonna be a victim"],[146.34,"Babe, come on, vamo', shake your bamba"],[147.12,""],[148.07,"Babe, vamo' danzar, auf Beat BackShots"],[149.81,"Viel Dollar, Dollar, komm, trink ein' Shot"],[151.61,"Tequila-Azul, komm, gib mein Glas"],[153.44,"International, guck, mein Babygyal"],[155.16,"GT3 durch Stadt, Aura Präsident"],[157.02,"Reich durch mein Talent, Loco dekadent"],[158.72,"Motherfucker-Flow wie Gunshots"],[160.41,""],
+  [160.90,"Yeah, shake like that"],[162.48,"Bussdown, Babe, meine Pretty Woman, ah"],[165.17,"Aura majestic, Gyal, stepp in den Club dominant, ah"],[168.78,"Body fantastic, Gyal, hol noch mehr Imperial, ah"],[172.01,"Aura majestic, Gyal, stepp in den Club dominant"],[174.81,"Ohne Skandal in den Top-Ten-Charts"],[176.63,"Immer noch Herz on the top, on God"],[178.32,"Thottie locate in the suite, five stars"],[179.87,"Und ich flieg PJs, drive passenger"],[181.70,"Body in shape, deine girls in love"],[183.44,"Guck, she slides in my messenger"],[185.11,"Ihr gefällt mein Vibe und mein Charisma"],[187.02,"Wenn sie mich sieht, dann in Foreign Cars"],[188.09,""],
+  [188.09,"Babe, come on, vamo', shake your bamba"],[189.81,"Babe, vamo' danzar, auf Beat Backshots"],[191.64,"Viel Dollar, Dollar, komm, trink ein' Shot"],[193.29,"Tequila-Azul, komm, gib mein Glas"],[195.28,"International, guck, mein Babygyal"],[196.99,"GT3 durch Stadt, Aura Präsident"],[198.71,"Reich durch mein Talent, Loco dekadent"],[200.41,"Motherfucker-Flow wie Gunshots"]
+];
+
+LYRICS["psycho-aitch"] = [
+  [6.83,"Oh no, look who guessed your password right, huh"],[12.66,"Oh no, and the girl you said who ain't your type"],[16.95,"Is sendin' messages, messages, they never end"],[20.65,"That's a whole lotta messages for just a friend"],[24.30,"Oh no, had a feelin' I knew what I'd find"],[28.86,"You met up with Veronica late last night"],[31.80,"You had a bit of Elena on the side"],[34.80,"Was chattin' up Anita all last week"],[37.96,"And now you're doin' Nina, how'd you even meet her?"],[40.79,"Hittin' on Bianca, are you dumb?"],[43.87,"Got with Alexandra and her mum"],[46.82,"You're tellin' every girl they drive you mad"],[49.72,"Yet you're callin' me the psychopath"],[52.77,"I'm the psychopath"],[55.66,"I'm the psychopath"],[58.24,"Oh, I'm a psycho"],[61.46,"I'm the psychopath"],[64.01,"Oh, I'm the psycho"],
+  [65.96,"Oh no, you got to be kiddin'"],[68.28,"You say how much you respect women"],[71.16,"I'm buying your meals, I'm paying your bills"],[74.15,"While you're out here, switchin' positions (ah)"],[77.23,"Hold up, wait, babe, I ain't finished (hold up, wait, yeah)"],[80.44,"All up in my face, girl, you trippin' (why you trippin' for?)"],[83.10,"It's not what it looks like, they're bruises not love bites (haha)"],[86.38,"Good luck with the hole that you're diggin'"],[88.74,"I don't fuck with Emily, on my life"],[91.49,"Had to cut off Beverly, at least I tried (I swear I tried)"],[94.53,"All these other girls that I can't see (huh)"],[97.48,"I just want a lil' Anne-Marie (haha, ha)"],[102.21,"Oh no, call me crazy all you like (ugh)"],[107.86,"Oh no, turns out I was fucking right"],[112.55,"You met up with Veronica late last night"],[115.26,"You had a bit of Elena on the side"],[118.42,"Was chattin' up Anita all last week"],[121.35,"And now you're doin' Nina, how'd you even meet her?"],[124.43,"Hittin' on Bianca, are you dumb? (What)"],[127.32,"Got with Alexandra and her mum (nah)"],[130.24,"You're tellin' every girl they drive you mad (ugh)"],[133.10,"Yet you're calling me the psychopath"],[136.10,"I'm the psychopath"],[139.11,"I'm the psychopath (haha)"],[142.02,"Oh, I'm a psycho"],[144.64,"I'm the psychopath"],[147.59,"Oh, I'm the psycho"],[150.94,""],[159.78,"Oh, I'm the psycho"]
+];
+
+LYRICS["rmb-polish-remix-aitch"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
+LYRICS["rmb-german-remix-aitch"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
+LYRICS["my-g-aitch-ed-sheeran"] = [
+  [2.45,"No other name for you"],
+  [4.14,"Even though they call you by another, you were always my G"],
+  [7.25,"And you light up the room"],
+  [8.92,"Ever since the first day you were here, you were always my G"],
+  [12.10,"And if the world is cruel"],
+  [13.70,"I will be the last one standin' here to protect you"],
+  [17.07,"Don't grow up too soon (Yeah)"],
+  [18.91,"From now and till forever, you were always my G"],
+  [21.15,"Yo, G, huh"],
+  [24.55,"You probably won't even understand this"],
+  [26.74,"So I'ma try and paint the picture on a canvas"],
+  [29.00,"Just wanna tell you you won't ever get abandoned"],
+  [31.57,"Can't lie, I started writin' and got anxious"],
+  [33.51,"But you're my biggest blessin', what a life that I've been granted"],
+  [36.23,"One in a million, couldn't try it if we planned it"],
+  [38.55,"Don't mind me, just fly free, you're my G"],
+  [41.03,"Shit ain't easy, this a different type of love (Yeah)"],
+  [43.30,"Every time we greet, you get a different kind of hug"],
+  [45.27,"All the memories that we keep, you and me could write a book"],
+  [47.89,"And we're still not done, you're my G till time is up"],
+  [50.69,"Out in public, you walk past them, they might look"],
+  [52.48,"Keep smilin', baby girl, and watch the day gon' brighten up"],
+  [54.96,"Know I'm still with ya, I'd kill for ya if someone tried their luck"],
+  [57.49,"Can't even sip my drink, I'm spillin' tears inside my cup"],
+  [60.24,"Knew you were special from the minute you was born"],
+  [62.18,"Unidentical twin, but so different from 'em all"],
+  [64.54,"So happy when I met you and your sister on the ward"],
+  [67.08,"You know big bro's here to come and lift you if you fall"],
+  [69.84,"I know Hat'll take care of you when I am gone"],
+  [72.14,"That's my angel, she'll be stable until I am one"],
+  [74.77,"I wish Tony seen you's grow, but shit, we ride on"],
+  [77.04,"Lookin' back at old pictures, where's the time gone?"],
+  [79.33,"No other name for you"],
+  [80.89,"Even though they call you by another, you were always my G"],
+  [84.02,"And you light up the room"],
+  [85.70,"Ever since the first day you were here, you were always my G"],
+  [88.87,"And if the world is cruel"],
+  [90.55,"I will be the last one standin' here to protect you"],
+  [93.48,"Trust"],
+  [93.80,"Don't grow up too soon"],
+  [95.79,"From now and till forever, you were always my G"],
+  [96.25,"Yo"],
+  [98.16,"Heart broke when I found out there's a hole in yours"],
+  [100.59,"Had me stressed out for weeks, but I cope of course"],
+  [103.04,"No way you would've left us, you was three months old"],
+  [105.37,"You got a long life ahead of you, I know there's more"],
+  [108.22,"To make you happy is what I'm hopin' for"],
+  [110.11,"Can have anything you want, I took an oath, I swore"],
+  [112.57,"Baby, live your best life, you shouldn't grow by force"],
+  [115.02,"All in your own time, G, the globe is yours"],
+  [118.94,"Yeah, you got us wearin' odd socks on the twenty-first"],
+  [122.74,"People laugh, but we're too strong for it to ever hurt"],
+  [125.09,"They might try and bring you down, but it'll never work"],
+  [127.49,"When you smile, you just light up the room"],
+  [129.37,"I ain't never met a person that's brighter than you"],
+  [131.75,"Say \"I love you,\" and I mean it every time that I do"],
+  [134.59,"You little shit, you got me cryin' in the booth"],
+  [136.89,"Tryna do Mum proud, tryna do Dad proud"],
+  [139.36,"Tryna do you proud, tryna do Hat proud"],
+  [141.98,"Swear I'm tryin' five years, I ain't sat down"],
+  [144.27,"And all I've heard is your voice in the background"],
+  [146.55,"Don't say a word before you chat, I just know it"],
+  [148.60,"If I answer FaceTime, you gon' ask me where Joe is"],
+  [151.39,"Swear to God, you're just amazing, little girl"],
+  [153.32,"From the bottom of my heart, I wouldn't change it for the world, yeah"],
+  [156.11,"No other name for you"],
+  [157.73,"Even though they call you by another, you were always my G"],
+  [160.85,"And you light up the room"],
+  [162.52,"Ever since the first day you were here, you were always my G"],
+  [165.58,"And if the world is cruel"],
+  [167.36,"I will be the last one standin' here to protect you"],
+  [170.57,"Don't grow up too soon"],
+  [172.46,"From now and till forever, you were always my G"],
+  [175.32,"No other name for you"],
+  [181.75,"Ever since the first day you were here, you were always my G"],
+  [184.90,"And you light up the room"],
+  [189.85,"Don't grow up too soon"],
+  [191.71,"From now and till forever, you were always my G"]
+];
+LYRICS["raving-in-the-studio-aitch"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
+LYRICS["keisha-becky-remix-aitch"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
+LYRICS["baby-aitch-ashanti"] = [
+  [1.52,"Oh, baby"],
+  [3.76,"Oh, baby"],
+  [4.91,"I just want to love you, baby"],
+  [7.13,"Always thinking of you, baby"],
+  [9.46,"You know I got it, baby, what do you want?"],
+  [11.24,"You know I got it, baby, what do you need?"],
+  [13.37,"She like (\"I just want to love you, baby\")"],
+  [15.64,"She say (\"Always thinking of you, baby\")"],
+  [19.91,"Oh, baby"],
+  [22.19,"Oh, baby"],
+  [22.64,"She like (\"I just want to love you, baby\")"],
+  [24.87,"She like (\"Always thinking of you, baby\")"],
+  [27.42,"Yeah, you know I got it, baby, what do you want?"],
+  [29.53,"You know I got it, baby, what do you need?"],
+  [31.84,"She like (\"I just want to love you, baby\")"],
+  [34.16,"She like (\"Always thinking of you, baby\")"],
+  [36.00,"Yeah, yo, I don't only love her for the sex"],
+  [38.91,"But I swear to God, I love it when she says"],
+  [41.58,"She know that she fucking with the best"],
+  [43.37,"Thinking she an angel till I put her on the bed"],
+  [45.73,"Gotta chase this money, baby, nuttin to be said"],
+  [47.64,"I ain't having no distractions when I'm running up a cheque (Oh, baby)"],
+  [49.97,"Every time I leave the crib, I got you looking at me stressed"],
+  [52.34,"But as soon as I'm home"],
+  [55.05,"Yeah, face down, ass up, cock it right back"],
+  [57.52,"Baby, how you not a model with a body like that?"],
+  [59.72,"Oh God, when she top me, she the top of my class"],
+  [62.16,"When we fuck, I'ma copyright that"],
+  [64.20,"I be on a vibe"],
+  [65.20,"Money to the side, I'm just tryna live my life (Yeah)"],
+  [67.60,"I can't even leave without her giving me the eyes"],
+  [69.92,"Babe, it ain't my fault, I gotta focus on what's mine"],
+  [71.76,"Take it easy, give me time"],
+  [72.92,"Yo, Aitch, yeah"],
+  [73.97,"You know I got it, baby, what do you want?"],
+  [75.74,"You know I got it, baby, what do you need?"],
+  [78.03,"She like (\"I just want to love you, baby\")"],
+  [80.30,"She like (\"Always thinking of you, baby\")"],
+  [82.69,"Yeah, you know I got it, baby, what do you want?"],
+  [85.01,"You can have it if you rolling with me"],
+  [87.32,"She like (\"I just want to love you, baby\")"],
+  [89.47,"She like (\"Always thinking of you, baby\")"],
+  [90.79,"Yeah, yeah"],
+  [92.51,"She want kids, I want cribs in the sticks"],
+  [94.55,"Girl boujee, she ain't tryna wait till Christmas for gifts (No)"],
+  [97.14,"If I left, would she miss me a bit?"],
+  [99.08,"Is she riding my wave? Is she sinking my ship?"],
+  [101.91,"Tough love, yeah, it literally is"],
+  [103.59,"And I know you get pissed when you're thinking of it"],
+  [106.13,"But we can still get that bling on your wrist"],
+  [108.00,"She like (\"Oh, baby, I'm satisfied\")"],
+  [110.51,"Yeah, yo, now I'm zoned out, start to go mental"],
+  [113.64,"I can't mix my love with my schedule (No way)"],
+  [116.39,"Always asking me why I'm never home, I just said I gotta push my potential"],
+  [120.06,"Wake up looking sexy and she stunning when she pose"],
+  [122.18,"Close to perfect when she naked and she curvy in the clothes"],
+  [124.39,"Get the Lamborghini white, I paint the Urus like her toes"],
+  [126.70,"Ain't no other brudda got her this certi and she knows (Yo, Aitch)"],
+  [129.52,"You know I got it, baby, what do you want?"],
+  [131.20,"You know I got it, baby, what do you need?"],
+  [133.42,"She like (\"I just want to love you, baby\")"],
+  [135.75,"She like (\"Always thinking of you, baby\")"],
+  [138.11,"Yeah, you know I got it, baby, what do you want?"],
+  [139.83,"Oh, baby"],
+  [140.38,"You can have it if you rolling with me"],
+  [142.11,"Oh, baby"],
+  [142.62,"She like (\"I just want to love you, baby\")"],
+  [144.90,"She like (\"Always thinking of you, baby\")"],
+  [148.01,"Can you rock with me? (Oh, baby)"],
+  [149.61,"No stoppin' me, can you take it to the top with me?"],
+  [152.46,"I just want to love you, baby"],
+  [154.77,"Always thinking of you, baby"],
+  [157.22,"Can you roll with me? (Ooh, baby)"],
+  [158.98,"All over me, can you take control of me?"],
+  [161.00,"She say, \"I just want to love you, baby\""],
+  [163.37,"She say, \"Always thinking of you, baby\""],
+  [166.38,"Can you roll with me? (Oh, baby)"],
+  [168.33,"All over me (Over me), can you take control of me?"],
+  [170.91,"I just want to love you, baby"],
+  [173.26,"Always thinking of you, baby"],
+];
+
 LYRICS["hate-me-ellie-goulding-juice-wrld"] = [
   [0.17,"Hate me, hate me, still tryna replace me"],[3.33,"Chase me, chase me, tell me how you hate me"],[6.39,"Erase me, 'rase me, wish you never dated me"],[9.61,"Lies, tell me lies, baby, tell me how you hate me"],
   [12.93,"I bet you don't kiss her with your eyes closed"],[16.08,"I bet you're still walking on a tightrope"],[19.21,"Miss me so much you've been goin' psycho"],[22.46,"You ain't gotta say it, baby, I know"],
@@ -1389,6 +1589,64 @@ LYRICS["a-moment-like-this-leona-lewis"] = [
   [230.48,"Some people wait a lifetime for a moment like this"],
   [243.11,"A moment like this"]
 ];
+LYRICS["footprints-in-the-sand-leona-lewis"] = [
+  [13.45,"You walked with me"],
+  [16.98,"Footprints in the sand"],
+  [20.98,"And helped me understand"],
+  [23.98,"Where I'm going"],
+  [28.98,"You walked with me"],
+  [33.09,"When I was all alone"],
+  [35.98,"With so much unknown"],
+  [39.98,"Along the way"],
+  [43.98,""],
+  [43.98,"Then I heard ya say"],
+  [47.98,""],
+  [47.98,"I promise you"],
+  [51.98,"I'm always there"],
+  [55.98,"When your heart is filled with"],
+  [59.92,"Sorrow and despair"],
+  [64.99,"I'll carry you"],
+  [67.98,"When you need a friend"],
+  [72.98,"You'll find my footprints in the sand"],
+  [80.74,""],
+  [80.74,"I see my life"],
+  [85.98,"Flash across the sky"],
+  [88.98,"So many times have I"],
+  [95.92,"Been so afraid"],
+  [98.29,"And just when I"],
+  [100.98,"I thought I'd lost my way"],
+  [104.98,"You gave me strength to carry on"],
+  [108.98,"That's when I heard you say"],
+  [113.98,""],
+  [113.98,"I promise you"],
+  [115.98,"I'm always there"],
+  [119.98,"When your heart is filled with"],
+  [124.14,"Sorrow and despair"],
+  [127.98,"And I'll carry you"],
+  [131.98,"When you need a friend"],
+  [136.98,"You'll find my footprints in the sand"],
+  [145.98,""],
+  [145.98,"When I'm weary"],
+  [149.98,"Well, I know you'll be there"],
+  [153.98,"And I can feel you"],
+  [157.98,"When you say"],
+  [163.98,""],
+  [163.98,"I promise you"],
+  [168.98,"Oh, I'm always there"],
+  [172.98,"When your heart is filled with"],
+  [176.72,"Sadness and despair"],
+  [179.98,"I'll carry you"],
+  [184.98,"When you need a friend"],
+  [189.98,"You'll find my footprints in the sand"],
+  [195.98,""],
+  [196.24,"(I promise you)"],
+  [199.72,"(I'm always there)"],
+  [199.20,"When your heart is full of"],
+  [204.59,"Sadness and despair (And despair)"],
+  [207.98,"I'll carry you (I'll carry you)"],
+  [212.88,"When you need a friend"],
+  [220.98,"You'll find my footprints in the sand"]
+];
 
 const assetUrl=(value)=>resolveAssetUrl(value, typeof window !== "undefined" ? window.location.href : "");
 const ALBUMS_WITH_ASSETS=ALBUMS.map(album=>({...album,artwork:assetUrl(album.artwork)}));
@@ -1829,8 +2087,8 @@ function App(){
   useEffect(()=>{ if(sleepTimer===1){ const a=audio.current; if(a){ const start=a.volume; const steps=12; let n=0; const fade=setInterval(()=>{ n++; a.volume=Math.max(0,start*(1-n/steps)); if(n>=steps){clearInterval(fade);a.pause();a.volume=start;setPlaying(false);setSleepTimer(null)} },250); return()=>clearInterval(fade); } } },[sleepTimer]);
 
 
-  const totalSeconds=Object.values(stats).reduce((a,s)=>a+(s.seconds||0),0);
-  const totalPlays=Object.values(stats).reduce((a,s)=>a+(s.plays||0),0)+Object.values(livePlays).reduce((a,v)=>a+v,0);
+  const totalSeconds=Object.values(stats).reduce((total,item)=>total+Math.max(0,Number(item?.seconds)||0),0);
+  const totalPlays=Object.values(stats).reduce((total,item)=>total+Math.max(0,Number(item?.plays)||0),0);
   const streakMilestoneInfo=getStreakMilestoneInfo(streak.current);
   const streakHistory=(Array.isArray(streak.history)?streak.history:[]).slice(0,4);
   const streakCalendar = useMemo(()=>{
@@ -2650,7 +2908,7 @@ const ARTISTS=[
   {artistId:"dave",name:"Dave",meta:"Dave",image:"/images/artist-dave.png",songId:"thiago-silva-dave-aj-tracey",accent:"red"},
   {artistId:"tay-keith",name:"Tay Keith",meta:"Tay Keith",image:"/images/artist-tay-keith.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan"},
   {artistId:"alexandra-burke",name:"Alexandra Burke",meta:"Alexandra Burke",image:"/images/artist-alexandra-burke.jpg",songId:"alexandra-burke-hallelujah",accent:"gold"},
-  {artistId:"leona-lewis",name:"Leona Lewis",meta:"Leona Lewis",image:"/images/artist-leona-lewis.png",songId:"run-leona-lewis",accent:"gold"},
+  {artistId:"leona-lewis",name:"Leona Lewis",meta:"Leona Lewis",image:"/images/artist-leona-lewis.png",songId:"footprints-in-the-sand-leona-lewis",accent:"gold" /* legacy catalogue anchor: songId:"run-leona-lewis" */},
   {artistId:"stormzy",name:"Stormzy",meta:"Stormzy",image:"/images/artist-stormzy.png",songId:"clash-dave-stormzy",accent:"violet"},
   {artistId:"oneda",name:"OneDa",meta:"OneDa",image:"/images/artist-oneda.png",songId:"bad-oneda",accent:"maroon"},
   {artistId:"vibe-chemistry",name:"Vibe Chemistry",meta:"Vibe Chemistry",image:"/images/artist-vibe-chemistry.png",songId:"balling-vibe-chemistry",accent:"cyan"},
@@ -2711,9 +2969,27 @@ function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlayli
     "sienna-were-not-in-love",
     "sienna-back-to-blonde"
   ];
+  const aitchSongOrder=[
+    "rmb-aitch",
+    "bamba-bia-aitch",
+    "rain-aitch-aj-tracey",
+    "ufo-d-block-europe-aitch",
+    "psycho-aitch",
+    "rmb-polish-remix-aitch",
+    "baby-aitch-ashanti",
+    "raving-in-the-studio-aitch",
+    "keisha-becky-remix-aitch",
+    "rmb-german-remix-aitch",
+    "my-g-aitch-ed-sheeran"
+  ];
   const displayArtistSongs=[...artistSongs].sort((a,b)=>{
     if(artist?.toLowerCase()==="sienna spiro"){
       return siennaSongOrder.indexOf(a.id)-siennaSongOrder.indexOf(b.id);
+    }
+    if(artist?.toLowerCase()==="aitch"){
+      const aIndex=aitchSongOrder.indexOf(a.id);
+      const bIndex=aitchSongOrder.indexOf(b.id);
+      return (aIndex<0?Number.MAX_SAFE_INTEGER:aIndex)-(bIndex<0?Number.MAX_SAFE_INTEGER:bIndex);
     }
     return 0;
   });
@@ -3267,19 +3543,22 @@ function fmtDuration(seconds) {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   if (h) return `${h}h${m ? ` ${m}m` : ""}`;
+  if (!m && total) return `${total}s`;
   return `${m}m`;
 }
 
 function PlaylistPicker({song,playlists,addPlaylist,addToPlaylist,onClose}){return <div className="overlayPanel playlistPickerOverlay"><div className="playlistPicker"><div className="panelHead"><div><span>ORGANISE</span><h2>Add to Playlist</h2><p>{song?.title}</p></div><button className="iconBtn" onClick={onClose}><X size={18}/></button></div><button className="ghost pickerCreate" onClick={()=>{addPlaylist();}}><Plus size={15}/> Create new playlist</button><div className="pickerList">{playlists.length?playlists.map(p=><button key={p.id} onClick={()=>addToPlaylist(song,p.id)}><ListMusic size={16}/><span><b>{p.name}</b><small>{p.songs.length} songs</small></span><ChevronRight size={15}/></button>):<div className="empty compactEmpty"><ListMusic size={25}/><span>No playlists yet.</span></div>}</div></div></div>}
 
 function StatsPage({songs,stats,livePlays,seconds,plays,back,play,like,likes,addToPlaylist,downloads,downloadSong}){
- const top=[...songs].sort((a,b)=>(getEffectivePlayCount(b,stats,livePlays))-(getEffectivePlayCount(a,stats,livePlays))).slice(0,5);
- const profile = calculateTasteProfile(songs, stats, livePlays);
- const totalProfileShare = profile.reduce((sum, item) => sum + item.share, 0) || 1;
+ const top=[...songs]
+  .filter(song=>getUserPlayCount(song,stats)>0)
+  .sort((a,b)=>getUserPlayCount(b,stats)-getUserPlayCount(a,stats)||(Number(stats?.[b.id]?.seconds)||0)-(Number(stats?.[a.id]?.seconds)||0))
+  .slice(0,5);
+ const profile = calculateTasteProfile(songs, stats);
  return <section className="page statsPage"><MobileBack onClick={back} label="Back"/><div className="pageHeading"><span>YOUR STATS</span><h1>Your listening story.</h1><p>Your stats, taste profile and collection stay on this device.</p></div>
  <div className="stats"><Stat icon={Clock3} value={fmtDuration(seconds)} label="Listening time"/><Stat icon={Play} value={plays} label="Total plays"/><Stat icon={Disc3} value={songs.length} label="Songs"/><Stat icon={Users} value={[...new Set(songs.map(s=>s.artist))].length} label="Artists"/></div>
- <div className="dnaGrid"><div className="panel dnaPanel"><div className="sectionTitle"><h2>Taste DNA</h2><span>BASED ON YOUR LISTENING</span></div><div className="dnaBars">{profile.map(({genre, share})=><div key={genre}><div><b>{genre}</b><small>{Math.round(share)}%</small></div><i style={{width:`${(share / totalProfileShare) * 100}%`}}/></div>)}</div><div className="dnaFacts"><span><b>Energy</b> {profile[0]?.genre || "Balanced"}</span><span><b>Era</b> Current rotation</span><span><b>Mix</b> {profile.slice(0,2).map(item => item.genre).join(" + ") || "Your mix"}</span></div></div><div className="panel storyCard"><span>WEEKLY LISTENING STORY</span><b>{fmtDuration(seconds)} of listening</b><p>{plays} plays across your Deluxe Tunes collection.</p><button className="primary small" onClick={()=>navigator.share?.({title:"My Deluxe Tunes week",text:`${fmtDuration(seconds)} listening time · ${plays} plays`})}><Share2 size={14}/> Share recap</button></div></div>
- <div className="panel statsTrackList"><Section title="Top tracks" action="All time"/>{top.map((s,i)=><Row key={s.id} song={s} n={i+1} stat={`${getEffectivePlayCount(s,stats,livePlays)} plays`} liked={likes?.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads?.includes(s.id)} downloadSong={downloadSong} stats={stats} livePlays={livePlays}/>)}</div>
+ <div className="dnaGrid"><div className="panel dnaPanel"><div className="sectionTitle"><h2>Taste DNA</h2><span>BASED ON YOUR LISTENING</span></div>{profile.length?<><div className="dnaBars">{profile.map(({genre, share})=><div key={genre}><div><b>{genre}</b><small>{Math.round(share)}%</small></div><i style={{width:`${share}%`}}/></div>)}</div><div className="dnaFacts"><span><b>Top genre</b> {profile[0].genre}</span><span><b>Next genre</b> {profile[1]?.genre || "None yet"}</span><span><b>Genres</b> {profile.length} listened</span></div></>:<div className="empty compactEmpty"><Music2 size={25}/><span>Your Taste DNA will appear as you listen.</span></div>}</div><div className="panel storyCard"><span>YOUR LISTENING STORY</span><b>{fmtDuration(seconds)} of listening</b><p>{plays} plays across your Deluxe Tunes collection.</p><button className="primary small" onClick={()=>navigator.share?.({title:"My Deluxe Tunes listening story",text:`${fmtDuration(seconds)} listening time · ${plays} plays`})}><Share2 size={14}/> Share recap</button></div></div>
+ <div className="panel statsTrackList"><div className="sectionTitle"><h2>Top tracks</h2><span>PLAYS · TIME LISTENED</span></div>{top.length?top.map((s,i)=><Row key={s.id} song={s} n={i+1} stat={getUserPlayCount(s,stats)} listeningSeconds={stats?.[s.id]?.seconds||0} liked={likes?.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads?.includes(s.id)} downloadSong={downloadSong}/>):<div className="empty compactEmpty"><Music2 size={25}/><span>Your top tracks will appear after you start listening.</span></div>}</div>
  <div className="sectionTitle"><h2>Digital Collection</h2><span>ALBUMS & PLAYLISTS</span></div><div className="collectionShelf">{songs.slice(0,8).map(s=><div key={s.id} className="collectionItem"><Cover song={s}/><b>{s.album||s.title}</b><small>{s.artist}</small></div>)}</div>
  <div className="socialGrid"><div className="socialCard"><UsersRound size={20}/><b>Listen Together</b><span>Create a shared queue when social playback is connected.</span><button className="ghost" onClick={()=>navigator.share?.({title:"Deluxe Tunes",text:"Listen Together"})}>Invite people</button></div><div className="socialCard"><ListMusic size={20}/><b>Collaborative Playlists</b><span>Build playlists with friends and keep the queue in sync.</span><button className="ghost">Create collaborative</button></div><div className="socialCard"><Layers3 size={20}/><b>Taste Overlap</b><span>Compare favourite artists when viewing another profile.</span><button className="ghost">View overlap</button></div></div>
  </section>}
@@ -3314,10 +3593,10 @@ function PlayerMoreMenu({song,addToPlaylist,addToQueue,liked,onLike,onQueue,volu
   </div>
 }
 function Card({song,liked,play,like,addToPlaylist,downloaded,downloadSong}){return <article className="card"><div className="cardCover"><Cover song={song}/><button className="cardPlay" onClick={()=>play(song)}><Play size={17} fill="currentColor"/></button><button className="cardLike" onClick={()=>like(song.id)} aria-label={liked?"Remove from Liked Songs":"Add to Liked Songs"}><Heart size={16} fill={liked?"currentColor":"none"}/></button></div><div className="cardTitle">{song.title}</div><div className="cardArtist">{song.artist}</div><div className="cardActions"><QueueMenu song={song} addToPlaylist={addToPlaylist} downloadSong={downloadSong} downloaded={downloaded}/></div></article>}
-function Row({song,n,liked,play,like,stat,addToPlaylist,downloaded,downloadSong,removeFromPlaylist,playlistId,stats,livePlays}){
+function Row({song,n,liked,play,like,stat,addToPlaylist,downloaded,downloadSong,removeFromPlaylist,playlistId,stats,livePlays,listeningSeconds}){
   const playCount=typeof stat==="number"?stat:(typeof stat==="string"?(parseInt(stat,10)||0):(getEffectivePlayCount(song,stats,livePlays))); 
   const hasLongText=song.title.length>36||song.artist.length>36;
-  return <>{n===1&&<TrackListHeader/>}<div className={hasLongText?"row longTitle":"row"}><span className="rowNum">{n}</span><Cover song={song}/><div className="rowTitleCell"><button className="rowMain" onClick={()=>play(song)}><b>{song.title}</b><span>{song.artist}</span></button></div><span className="rowPlays">{formatPlayCount(playCount)}</span><span className="rowDuration">{fmt(song.duration||song.length)}</span><button className={liked?"heart liked":"heart"} onClick={()=>like(song.id)} aria-label={liked?"Remove from Liked Songs":"Add to Liked Songs"}><Heart size={16} fill={liked?"currentColor":"none"}/></button><button className="rowPlay" onClick={()=>play(song)} aria-label={`Play ${song.title}`}><Play size={14} fill="currentColor"/></button><QueueMenu song={song} addToPlaylist={addToPlaylist} downloadSong={downloadSong} downloaded={downloaded} removeFromPlaylist={removeFromPlaylist} playlistId={playlistId}/></div></>
+  return <>{n===1&&<TrackListHeader/>}<div className={hasLongText?"row longTitle":"row"}><span className="rowNum">{n}</span><Cover song={song}/><div className="rowTitleCell"><button className="rowMain" onClick={()=>play(song)}><b>{song.title}</b><span>{song.artist}</span></button></div><span className="rowPlays">{formatPlayCount(playCount)}</span><span className="rowDuration" title={listeningSeconds!==undefined?"Time listened":"Track duration"} aria-label={listeningSeconds!==undefined?`Time listened: ${fmtDuration(listeningSeconds)}`:undefined}>{listeningSeconds!==undefined?fmtDuration(listeningSeconds):fmt(song.duration||song.length)}</span><button className={liked?"heart liked":"heart"} onClick={()=>like(song.id)} aria-label={liked?"Remove from Liked Songs":"Add to Liked Songs"}><Heart size={16} fill={liked?"currentColor":"none"}/></button><button className="rowPlay" onClick={()=>play(song)} aria-label={`Play ${song.title}`}><Play size={14} fill="currentColor"/></button><QueueMenu song={song} addToPlaylist={addToPlaylist} downloadSong={downloadSong} downloaded={downloaded} removeFromPlaylist={removeFromPlaylist} playlistId={playlistId}/></div></>
 }
 function getEffectivePlayCount(song, stats = {}, livePlays = {}){
   return Number(song?.plays || 0) + Number(stats?.[song?.id]?.plays || 0) + Number(livePlays?.[song?.id] || 0);

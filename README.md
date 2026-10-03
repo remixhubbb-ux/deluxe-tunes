@@ -2,7 +2,7 @@
 
 Deluxe Tunes is a polished local-first music player with a bundled media library, Spotify and Discord account connection, desktop/mobile packaging, and a persistent listening experience.
 
-Current release: 8.1.6
+Current release: 8.1.8
 
 ## What the app includes
 
@@ -183,4 +183,4 @@ npm run ios:build
 
 ## Version
 
-The current package version is `8.1.6`.
+The current package version is `8.1.7`.

@@ -2,33 +2,26 @@ export function getEffectivePlayCount(song = {}, stats = {}, livePlays = {}) {
   return Number(song?.plays || 0) + Number(stats?.[song?.id]?.plays || 0) + Number(livePlays?.[song?.id] || 0);
 }
 
-export function calculateTasteProfile(songs = [], stats = {}, livePlays = {}) {
+export function getUserPlayCount(song = {}, stats = {}) {
+  const count = Number(stats?.[song?.id]?.plays || 0);
+  return Number.isFinite(count) ? Math.max(0, count) : 0;
+}
+
+export function calculateTasteProfile(songs = [], stats = {}) {
   const totals = {};
-  let hasSignal = false;
 
   for (const song of songs) {
     const genre = (song?.genre || 'Unknown').trim() || 'Unknown';
-    const userWeight = Number(stats?.[song?.id]?.plays || 0) + Number(livePlays?.[song?.id] || 0);
+    const userWeight = getUserPlayCount(song, stats);
     if (userWeight <= 0) continue;
     totals[genre] = (totals[genre] || 0) + userWeight;
-    hasSignal = true;
-  }
-
-  if (!hasSignal) {
-    return [
-      { genre: 'Pop', plays: 0, share: 0 },
-      { genre: 'Electronic', plays: 0, share: 0 },
-      { genre: 'Hip Hop', plays: 0, share: 0 },
-      { genre: 'UK Rap', plays: 0, share: 0 },
-    ];
   }
 
   const total = Object.values(totals).reduce((sum, value) => sum + Number(value || 0), 0) || 1;
 
   return Object.entries(totals)
     .map(([genre, plays] = []) => ({ genre, plays, share: (Number(plays || 0) / total) * 100 }))
-    .sort((a, b) => b.plays - a.plays)
-    .slice(0, 4);
+    .sort((a, b) => b.plays - a.plays);
 }
 
 export async function isAppOnline(timeoutMs = 2200) {

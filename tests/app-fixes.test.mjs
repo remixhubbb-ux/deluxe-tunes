@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { calculateTasteProfile, canDownloadFromOrigin, isRemoteAuthAvailable, normalizePlaylistName, resolveAssetUrl } from '../src/appLogic.js';
+import { calculateTasteProfile, canDownloadFromOrigin, getUserPlayCount, isRemoteAuthAvailable, normalizePlaylistName, resolveAssetUrl } from '../src/appLogic.js';
 
 const songs = [
   { id: 'pop-1', genre: 'Pop', plays: 240000 },
@@ -22,17 +22,18 @@ const livePlays = {
 };
 
 const profile = calculateTasteProfile(songs, stats, livePlays);
-assert.ok(profile.length >= 4, 'taste profile should include multiple genres');
+assert.equal(profile.length, 4, 'taste profile should include every genre with real listens');
 assert.equal(profile[0].genre, 'Pop', 'largest play-weighted genre should be Pop');
-assert.ok(profile[0].share > 40, 'Pop should be the largest share based on actual play activity');
+assert.ok(profile[0].share > 35, 'Pop should be the largest share based on recorded play activity');
 assert.ok(Math.abs(profile.reduce((sum, item) => sum + item.share, 0) - 100) < 0.01, 'shares should sum to 100%');
+assert.equal(getUserPlayCount(songs[0], stats), 20, 'user top-track counts must ignore catalogue popularity');
+assert.equal(getUserPlayCount(songs[1], stats), 0, 'live popularity counts must not be treated as the user’s plays');
 
 const freshProfile = calculateTasteProfile([
   { id: 'pop-1', genre: 'Pop', plays: 400000 },
   { id: 'hiphop-1', genre: 'Hip Hop', plays: 500000 },
 ], {}, {});
-assert.ok(freshProfile.length >= 2, 'fresh profiles should still include genres');
-assert.ok(freshProfile.every((item) => item.share === 0), 'new installs should start with neutral 0% Taste DNA until listening builds up');
+assert.deepEqual(freshProfile, [], 'new installs should not show invented Taste DNA before any listening');
 
 assert.equal(canDownloadFromOrigin('/audio/test.mp3', true, 'file:'), true, 'desktop builds should permit downloads when the PC has internet access');
 assert.equal(canDownloadFromOrigin('/audio/test.mp3', false, 'file:'), true, 'bundled local app music should remain available even when the device reports offline');
