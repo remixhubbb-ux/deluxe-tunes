@@ -784,10 +784,31 @@ const server=http.createServer(async (req,res)=>{
       if (secret && !body.has('client_secret')) { headers.Authorization='Basic '+Buffer.from(`${clientId}:${secret}`).toString('base64'); }
       console.log('[Discord] exchanging code', { redirectUri: DISCORD_REDIRECT_URI, state: state || null, hasClientSecret: Boolean(secret), hasVerifier: Boolean(pending.verifier) });
       const tokenRes=await fetch('https://discord.com/api/v10/oauth2/token',{method:'POST',headers,body});
-      const token=await tokenRes.json().catch(()=>({}));
+      const tokenText=await tokenRes.text();
+      let token={};
+      try{
+        const parsed=tokenText?JSON.parse(tokenText):{};
+        if(parsed && typeof parsed==='object') token=parsed;
+      }catch{}
       if(!tokenRes.ok){
-        console.error('[Discord] token exchange failed', { status: tokenRes.status, body: token, redirectUri: DISCORD_REDIRECT_URI, state: state || null });
-        throw new Error(token?.error_description||token?.message||`Token exchange failed (${tokenRes.status})`);
+        const rateLimitHeaders={
+          retryAfter:tokenRes.headers.get('retry-after'),
+          limit:tokenRes.headers.get('x-ratelimit-limit'),
+          remaining:tokenRes.headers.get('x-ratelimit-remaining'),
+          resetAfter:tokenRes.headers.get('x-ratelimit-reset-after'),
+          bucket:tokenRes.headers.get('x-ratelimit-bucket'),
+          global:tokenRes.headers.get('x-ratelimit-global'),
+        };
+        console.error('[Discord] token exchange failed', {
+          status: tokenRes.status,
+          contentType: tokenRes.headers.get('content-type') || 'unknown',
+          body: tokenText ? (Object.keys(token).length ? token : truncateText(tokenText,500)) : token,
+          rateLimitHeaders,
+          redirectUri: DISCORD_REDIRECT_URI,
+          state: state || null,
+        });
+        const errorMessage=token?.error_description||token?.message||token?.error;
+        throw new Error(errorMessage||(tokenRes.status===429?'Discord is rate-limiting sign-in. Please try again later.':`Token exchange failed (${tokenRes.status})`));
       }
       const user=await discordApi('/users/@me',token.access_token);
       discordAuth={user,accessToken:token.access_token,refreshToken:token.refresh_token,expiresAt:Date.now()+(Number(token.expires_in)||604800)*1000};
