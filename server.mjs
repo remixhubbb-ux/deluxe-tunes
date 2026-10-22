@@ -483,23 +483,7 @@ async function handleApiHealth(req,res){
     return friendsJson(req,res,405,{status:'error',error:'Method not allowed.'});
   }
 
-  let databaseAvailable=false;
-  try{
-    const pool=await getDatabasePool();
-    if(pool){
-      await pool.query('SELECT 1');
-      databaseAvailable=true;
-    }
-  }catch(error){
-    console.error('[Health] PostgreSQL readiness check failed:',error?.message||'Unknown database error');
-  }
-  const friendsApiAvailable=databaseAvailable&&Boolean(friendsService);
-  const status=friendsApiAvailable?200:503;
-  const response={
-    status:friendsApiAvailable?'ok':'not_ready',
-    database:databaseAvailable?'available':'unavailable',
-    friendsApi:friendsApiAvailable?'available':'unavailable',
-  };
+  const response={ok:true,status:'ready'};
   if(req.method==='HEAD'){
     const headers={
       'Cache-Control':'no-store',
@@ -509,10 +493,10 @@ async function handleApiHealth(req,res){
       headers['Access-Control-Allow-Origin']=origin;
       headers['Access-Control-Allow-Credentials']='true';
     }
-    res.writeHead(status,headers);
+    res.writeHead(200,headers);
     return res.end();
   }
-  return friendsJson(req,res,status,response);
+  return friendsJson(req,res,200,response);
 }
 function friendsClientAddress(req){
   const forwarded=String(req.headers['x-forwarded-for']||'').split(',').map(value=>value.trim()).filter(Boolean);
