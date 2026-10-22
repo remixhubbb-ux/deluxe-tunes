@@ -81,6 +81,21 @@ export const FRIENDS_SCHEMA_SQL = `
   );
 `;
 
+export const FRIENDS_DESKTOP_ORIGIN = 'deluxetunes://app';
+
+export function getFriendsAllowedOrigins({production, appOrigin, allowedOrigins} = {}) {
+  const configuredOrigins = String(allowedOrigins || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+  return new Set([
+    ...(configuredOrigins.length ? configuredOrigins : ['https://deluxetunesapp.pages.dev']),
+    FRIENDS_DESKTOP_ORIGIN,
+    ...(appOrigin && (!production || appOrigin.startsWith('https://')) ? [appOrigin] : []),
+    ...(!production ? ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'] : []),
+  ]);
+}
+
 const SESSION_COOKIE = 'dt_friends_session';
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const safeName = (name, fallback = 'Deluxe Listener') => {

@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import crypto from 'node:crypto';
 import pg from 'pg';
-import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsCookieName, getFriendsCookieOptions} from './server/friendsService.mjs';
+import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsAllowedOrigins, getFriendsCookieName, getFriendsCookieOptions} from './server/friendsService.mjs';
 import {createReleaseAnnouncementService,createReleaseCataloguePoller,fetchReleaseCatalog,MAX_WEBHOOK_ATTEMPTS,parseBundledSongCatalog,sendDiscordReleaseWebhookTest} from './releaseAnnouncements.mjs';
 
 const { Pool } = pg;
@@ -25,10 +25,13 @@ try{
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATABASE_URL = process.env.DATABASE_URL || null;
-const DATA_FILE = path.join(__dirname, 'data', 'plays.json');
-const SPOTIFY_SESSION_FILE = path.join(__dirname, 'data', 'spotify-auth.json');
-const DISCORD_SESSION_FILE = path.join(__dirname, 'data', 'discord-auth.json');
-const RELEASE_ANNOUNCEMENTS_FILE = path.join(__dirname, 'data', 'release-announcements.json');
+const DATA_DIR = process.env.DELUXE_TUNES_DATA_DIR
+  ? path.resolve(process.env.DELUXE_TUNES_DATA_DIR)
+  : path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'plays.json');
+const SPOTIFY_SESSION_FILE = path.join(DATA_DIR, 'spotify-auth.json');
+const DISCORD_SESSION_FILE = path.join(DATA_DIR, 'discord-auth.json');
+const RELEASE_ANNOUNCEMENTS_FILE = path.join(DATA_DIR, 'release-announcements.json');
 const DISCORD_NEW_RELEASE_WEBHOOK_URL = process.env.DISCORD_NEW_RELEASE_WEBHOOK_URL || '';
 const DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS = (process.env.DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS || '')
   .split(',').map(id=>id.trim()).filter(id=>/^[a-z0-9][a-z0-9._-]{0,119}$/i.test(id));
@@ -40,12 +43,11 @@ const FRIENDS_PRODUCTION = process.env.NODE_ENV === 'production' ||
   process.env.RENDER === 'true' ||
   process.env.RENDER === '1' ||
   OAUTH_BASE_URL.startsWith('https://');
-const FRIENDS_ALLOWED_ORIGINS = new Set([
-  'https://deluxetunesapp.pages.dev',
-  ...String(process.env.ALLOWED_APP_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean),
-  ...(APP_ORIGIN && (!FRIENDS_PRODUCTION || APP_ORIGIN.startsWith('https://')) ? [APP_ORIGIN] : []),
-  ...(!FRIENDS_PRODUCTION ? ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'] : []),
-]);
+const FRIENDS_ALLOWED_ORIGINS = getFriendsAllowedOrigins({
+  production: FRIENDS_PRODUCTION,
+  appOrigin: APP_ORIGIN,
+  allowedOrigins: process.env.ALLOWED_APP_ORIGINS,
+});
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || new URL('/api/discord/callback', OAUTH_BASE_URL).toString();
 const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || new URL('/api/spotify/callback', OAUTH_BASE_URL).toString();
 const discordOAuthPending = new Map();

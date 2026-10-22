@@ -58,7 +58,6 @@
       "electron/preload.cjs",
       "server.mjs",
       "server/**/*",
-      "data/**/*",
       "package.json"
     ],
     "win": {

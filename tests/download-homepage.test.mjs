@@ -9,6 +9,8 @@ const viteConfig = readFileSync(join(root, 'vite.config.js'), 'utf8');
 const serviceWorker = readFileSync(join(root, 'public', 'sw.js'), 'utf8');
 const capacitorConfig = readFileSync(join(root, 'capacitor.config.ts'), 'utf8');
 const electronMain = readFileSync(join(root, 'electron', 'main.cjs'), 'utf8');
+const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const server = readFileSync(join(root, 'server.mjs'), 'utf8');
 const webManifest = readFileSync(join(root, 'public', 'manifest.webmanifest'), 'utf8');
 
 assert.match(homepage, /href="deluxe-tunes-logo\.png"/, 'restored homepage should use the ZIP logo');
@@ -18,7 +20,13 @@ assert.match(homepage, /id="windowsDownload"[^>]+Deluxe-Tunes-Setup-v8\.1\.7\.ex
 assert.doesNotMatch(homepage, /src="\/src\/main\.jsx"/, 'the public homepage must not mount the preview React app');
 assert.match(appShell, /src="\/src\/main\.jsx"/, 'the React app remains available as a separate entry');
 assert.match(viteConfig, /fileName: 'song-catalog\.json'/, 'Vite must continue generating the live catalogue asset');
-assert.match(electronMain, /dist', 'app\.html'/, 'Electron should open the React player entry');
+assert.match(electronMain, /protocol\.registerSchemesAsPrivileged/, 'Electron should register its secure app scheme');
+assert.match(electronMain, /protocol\.handle\(APP_SCHEME/, 'Electron should serve app assets through its custom scheme');
+assert.match(electronMain, /window\.loadURL\(`\$\{APP_SCHEME\}:\/\/app\/app\.html`\)/, 'Electron should open the React player entry on its dedicated origin');
+assert.match(electronMain, /DELUXE_TUNES_DATA_DIR:\s*path\.join\(app\.getPath\('userData'\)/, 'desktop server data should live in the per-user directory');
+assert.match(server, /process\.env\.DELUXE_TUNES_DATA_DIR/, 'the local server should support the desktop data directory');
+assert.ok(packageJson.build.files.includes('server/**/*'), 'the packaged app should include its server implementation');
+assert.ok(!packageJson.build.files.includes('data/**/*'), 'the packaged app must not include local user data or auth sessions');
 assert.match(electronMain, /path\.join\(__dirname, '\.\.', 'dist', 'logo\.ico'\)/, 'Electron should use the packaged ICO for the window and taskbar icon');
 assert.match(capacitorConfig, /appStartPath:\s*"\/app\.html"/, 'Capacitor should launch the React player entry');
 assert.match(webManifest, /"start_url":"\/app\.html"/, 'PWA installs should launch the React player entry');

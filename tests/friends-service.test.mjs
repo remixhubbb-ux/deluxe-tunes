@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import {
   FRIENDS_SCHEMA_SQL,
+  FRIENDS_DESKTOP_ORIGIN,
+  getFriendsAllowedOrigins,
   FriendsService,
   getFriendsCookieName,
   getFriendsCookieOptions,
@@ -93,6 +95,27 @@ test('server sessions use HttpOnly cookies and production-only Secure attributes
   assert.match(getFriendsCookieOptions(true), /HttpOnly/);
   assert.match(getFriendsCookieOptions(true), /SameSite=None/);
   assert.match(getFriendsCookieOptions(true), /Secure/);
+});
+
+test('desktop Friends requests use a dedicated non-opaque CORS origin', () => {
+  assert.equal(FRIENDS_DESKTOP_ORIGIN, 'deluxetunes://app');
+});
+
+test('explicit staging origins replace the production web origin while retaining desktop access', () => {
+  const allowed = getFriendsAllowedOrigins({
+    production: true,
+    appOrigin: 'https://friends-preview.pages.dev',
+    allowedOrigins: 'https://friends-preview.pages.dev',
+  });
+  assert.deepEqual([...allowed], ['https://friends-preview.pages.dev', FRIENDS_DESKTOP_ORIGIN]);
+  assert.equal(allowed.has('https://deluxetunesapp.pages.dev'), false);
+  assert.equal(allowed.has('https://attacker.example'), false);
+  assert.equal(allowed.has('null'), false);
+});
+
+test('production defaults allow only the production web origin and desktop app', () => {
+  const allowed = getFriendsAllowedOrigins({production: true});
+  assert.deepEqual([...allowed], ['https://deluxetunesapp.pages.dev', FRIENDS_DESKTOP_ORIGIN]);
 });
 
 test('registration stores a bcrypt password hash, starts a session, and leaves email unverified', async () => {
@@ -362,6 +385,31 @@ test('the authenticated recipient can accept a request and create one friendship
   assert.deepEqual(friendship.values, [userId, otherUserId].sort());
   assert.equal(requestUpdate.values[0], requestId);
   assert.equal(requestUpdate.values[1], 'accepted');
+});
+
+test('the authenticated recipient can decline a request without creating a friendship', async () => {
+  const calls = [];
+  const requestId = '4ec11394-5a13-4c52-935f-6a833e7922ad';
+  const client = {
+    async query(sql, values = []) {
+      calls.push({sql, values});
+      if (sql.includes('SELECT id, sender_id, recipient_id FROM friend_requests')) {
+        return {rowCount: 1, rows: [{id: requestId, sender_id: otherUserId, recipient_id: userId}]};
+      }
+      return {rowCount: 1, rows: []};
+    },
+    release() {},
+  };
+  const service = new FriendsService({pool: {async connect() { return client; }}});
+
+  const result = await service.respondToRequest(userId, requestId, 'decline');
+  const requestUpdate = calls.find(call => call.sql.includes('UPDATE friend_requests'));
+
+  assert.deepEqual(result, {ok: true, status: 'declined'});
+  assert.equal(requestUpdate.values[0], requestId);
+  assert.equal(requestUpdate.values[1], 'declined');
+  assert.equal(calls.some(call => call.sql.includes('INSERT INTO friendships')), false);
+  assert.equal(calls.some(call => call.sql === 'COMMIT'), true);
 });
 
 test('profile usernames are validated before any database mutation', async () => {

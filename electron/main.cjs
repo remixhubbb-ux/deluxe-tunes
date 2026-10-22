@@ -1,14 +1,27 @@
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, protocol, net } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { spawn } = require('node:child_process');
 
 const DEFAULT_DISCORD_APP_ID = '1550514971572445324';
+const APP_SCHEME = 'deluxetunes';
 let serverProcess = null;
 let discordRpcClient = null;
 let discordRpcReady = false;
 let discordPresence = null;
 let discordRpcConnecting = false;
 let discordRpcRetryTimer = null;
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: APP_SCHEME,
+  privileges: {
+    standard: true,
+    secure: true,
+    supportFetchAPI: true,
+    corsEnabled: true,
+    stream: true,
+  },
+}]);
 
 function getDiscordRpcClientId() {
   return process.env.DISCORD_CLIENT_ID || DEFAULT_DISCORD_APP_ID;
@@ -119,7 +132,11 @@ function startLocalServer() {
   serverProcess = spawn(process.execPath, [serverEntry], {
     cwd: path.join(__dirname, '..'),
     stdio: 'ignore',
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DELUXE_TUNES_DATA_DIR: path.join(app.getPath('userData'), 'server-data'),
+    },
   });
 
   serverProcess.on('error', () => {});
@@ -142,7 +159,7 @@ function createWindow() {
     },
   });
 
-  window.loadFile(path.join(__dirname, '..', 'dist', 'app.html'));
+  window.loadURL(`${APP_SCHEME}://app/app.html`);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
@@ -151,6 +168,21 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  const distPath = path.resolve(__dirname, '..', 'dist');
+  protocol.handle(APP_SCHEME, request => {
+    const url = new URL(request.url);
+    if (url.hostname !== 'app' || !['GET', 'HEAD'].includes(request.method)) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'app.html';
+    const filePath = path.resolve(distPath, relativePath);
+    if (!filePath.startsWith(`${distPath}${path.sep}`)) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    return net.fetch(pathToFileURL(filePath).toString());
+  });
   app.setAppUserModelId('com.deluxetunes.desktop');
   app.setName('Deluxe Tunes');
   initializeDiscordRpc();
