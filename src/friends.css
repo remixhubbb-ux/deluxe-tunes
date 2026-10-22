@@ -1,0 +1,163 @@
+.friendsPage{max-width:1040px}
+.friendsHeading{align-items:center;margin-bottom:25px}
+.friendsHeadingIdentity{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #252b39;border-radius:14px;background:#10141d}
+.friendsHeadingIdentity>img,.friendsHeadingIdentity>span{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#1b2530;display:grid;place-items:center;font-weight:700;color:var(--lime)}
+.friendsHeadingIdentity div{display:grid;gap:3px}.friendsHeadingIdentity b{font-size:12px}.friendsHeadingIdentity small{color:#8992a2;font-size:10px}
+.friendsAuthCard,.friendsProfilePanel{border:1px solid #252b39;border-radius:18px;background:linear-gradient(135deg,#111721,#0d1118);padding:22px}
+.friendsAuthCard{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:18px}
+.friendsAuthIcon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:#b7ff3c12;color:var(--lime)}
+.friendsAuthCard h2,.friendsProfilePanel h2{font:600 18px "Space Grotesk";margin:0 0 7px}.friendsAuthCard p{max-width:580px;margin:0;color:#8f99aa;font-size:12px;line-height:1.6}
+.friendsLocalNotice,.friendsPrivacyNote{color:#788294;font-size:11px;line-height:1.6;margin:12px 3px}
+.friendsVerificationNotice{padding:10px 13px;border:1px solid #765a2b66;border-radius:10px;background:#765a2b16;color:#d7b980;font-size:11px;line-height:1.5}
+.friendsAccountForm{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.friendsAccountForm label{display:grid;gap:6px;color:#929bac;font-size:11px}
+.friendsAccountForm input{width:100%;height:39px;padding:0 12px;border:1px solid #2a3140;border-radius:10px;background:#0b1017;color:#f5f7fa;outline:0}
+.friendsAccountForm input:focus{border-color:#b7ff3c77;box-shadow:0 0 0 3px #b7ff3c11}
+.friendsAccountForm>.primary,.friendsAccountForm>.friendsTextButton,.friendsAccountForm>.friendsFeedback,.friendsAccountForm>.accountVerificationNotice{grid-column:1/-1}
+.friendsAccountForm>.primary{justify-self:start;min-width:150px}
+.accountVerificationNotice{margin:0;color:#a9b2c1;font-size:10px;line-height:1.5}
+.friendsProfilePanel{margin:16px 0 22px;padding:19px 21px}
+.friendsProfilePanel.needsSetup{border-color:#b7ff3c55;box-shadow:0 0 28px #b7ff3c0a}
+.friendsPanelHeading{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}.friendsPanelHeading .eyebrow{font-size:9px}.friendsPanelHeading h2{margin:5px 0 0}.friendsPanelHeading>svg{color:var(--lime)}
+.friendsProfileForm{display:grid;gap:15px}
+.friendsProfileFields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.friendsProfileFields>label{display:grid;gap:7px;color:#929bac;font-size:11px}
+.friendsProfileFields input{width:100%;height:39px;padding:0 12px;border:1px solid #2a3140;border-radius:10px;background:#0b1017;color:#f5f7fa;outline:0}
+.friendsProfileFields input:focus{border-color:#b7ff3c77;box-shadow:0 0 0 3px #b7ff3c11}
+.friendsProfileFields small{font-size:10px;color:#707b8d}
+.friendsUsernameInput{height:39px;display:flex;align-items:center;border:1px solid #2a3140;border-radius:10px;background:#0b1017;padding-left:12px;color:var(--lime)}
+.friendsUsernameInput input{height:36px;border:0;background:transparent;box-shadow:none!important}
+.friendsPrivacyOptions{display:flex;flex-wrap:wrap;gap:10px 24px}
+.friendsPrivacyOptions>label{display:flex;align-items:flex-start;gap:9px;cursor:pointer}
+.friendsPrivacyOptions input{accent-color:var(--lime);margin:3px 0 0}
+.friendsPrivacyOptions span{display:grid;gap:3px}.friendsPrivacyOptions b{font-size:11px}.friendsPrivacyOptions small{font-size:10px;color:#7f899a;line-height:1.4}
+.friendsProfileForm>.primary{justify-self:start;min-width:152px}
+.friendsTextButton,.friendsBlockText{color:#9aa3b3;font-size:10px;text-decoration:underline;text-underline-offset:3px}
+.friendsTextButton{justify-self:start}.friendsBlockText:hover{color:#ff9292}
+.friendsFeedback{padding:11px 14px;border-radius:11px;margin:12px 0;font-size:12px}
+.friendsFeedback.error{color:#ffb6b6;background:#5b1e2529;border:1px solid #ff6b6b44}
+.friendsFeedback.success{color:#caff78;background:#b7ff3c12;border:1px solid #b7ff3c35}
+.friendsTabs{display:flex;gap:7px;padding-bottom:11px;border-bottom:1px solid #202734;margin-bottom:14px}
+.friendsTabs button{display:flex;align-items:center;gap:7px;padding:9px 12px;border-radius:10px;color:#929bac;font-size:11px;font-weight:700}
+.friendsTabs button:hover{background:#171d27;color:#f5f7fa}.friendsTabs button.active{background:#b7ff3c14;color:var(--lime);box-shadow:inset 0 0 0 1px #b7ff3c30}
+.friendsTabs button>span{min-width:18px;padding:2px 5px;border-radius:99px;background:#ffffff0c;color:#aeb6c4;font-size:9px;text-align:center}
+.friendsTabs button>.friendsRequestBadge{background:var(--lime);color:#10140a}
+.friendsList{display:grid;gap:9px}
+.friendsPersonCard,.friendsRequestCard{min-width:0;display:flex;align-items:center;gap:13px;padding:13px;border:1px solid #232a37;border-radius:14px;background:linear-gradient(120deg,#111620,#0e1219);transition:border-color .18s,background .18s}
+.friendsPersonCard:hover,.friendsRequestCard:hover{border-color:#384354;background:#121822}
+.friendsAvatar,.friendsAvatarButton{width:44px;height:44px;flex:none;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#1a2230;color:var(--lime);font-weight:700}
+.friendsAvatar img,.friendsAvatarButton img{width:100%;height:100%;object-fit:cover}
+.friendsAvatarButton{padding:0;border:1px solid #2c3542}.friendsAvatarButton:hover{border-color:var(--lime)}
+.friendsPersonMain{flex:1;min-width:0;display:grid;gap:5px}
+.friendsPersonName{justify-self:start;padding:0;font-size:13px;font-weight:700;text-align:left}.friendsPersonName:hover{color:var(--lime)}
+.friendsPersonMain>b{font-size:13px}
+.friendsHandle{display:flex;align-items:center;gap:5px;color:#8993a4;font-size:10px;flex-wrap:wrap}
+.friendsHandle>i,.friendsProfileStatus>i{width:7px;height:7px;border-radius:50%;background:#606a79;display:inline-block}
+.friendsHandle>i.online,.friendsProfileStatus.online>i{background:#a5f34b;box-shadow:0 0 9px #a5f34b88}
+.friendsStreak{color:#efb66a;font-size:9px;font-weight:600;margin-left:4px}
+.friendsPersonActions{display:flex;gap:5px}
+.friendsIconAction{width:32px;height:32px;padding:0;display:grid;place-items:center}
+.friendsRequestActions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.friendsRequestActions .small,.friendsRequestCard>.small{margin:0}
+.friendsRequestCard{padding:14px}
+.friendsPendingState,.friendsOwnedState{display:inline-flex;align-items:center;gap:5px;color:#a8b2c2;font-size:10px}
+.friendsOwnedState{color:var(--lime)}
+.friendsSearchForm{display:flex;gap:9px;margin:4px 0 15px}
+.friendsSearchForm>label{height:44px;flex:1;display:flex;align-items:center;gap:10px;padding:0 13px;border:1px solid #2a3140;border-radius:12px;background:#10151e;color:#8490a2}
+.friendsSearchForm input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:#fff;font-size:12px}
+.friendsSearchForm .primary{min-width:104px}
+.friendsEmpty{min-height:145px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:22px;text-align:center;border:1px dashed #293140;border-radius:15px;color:#8690a1;font-size:11px}
+.friendsEmpty>svg{color:#647184}.friendsEmpty>b{color:#e9edf3;font-size:13px}.friendsEmpty>span{max-width:340px;line-height:1.55}
+.friendsLoadingDot{width:10px;height:10px;border:2px solid #47505f;border-top-color:var(--lime);border-radius:50%;animation:spin .8s linear infinite}
+.friendsListening{width:100%;max-width:440px;min-width:0;display:flex;align-items:center;gap:8px;margin-top:3px;padding:7px 8px;border:1px solid #252d39;border-radius:10px;background:#0a0f15}
+.friendsListening>img,.friendsListeningIcon{width:31px;height:31px;flex:none;border-radius:6px;object-fit:cover}.friendsListeningIcon{display:grid;place-items:center;background:#1a2430;color:var(--cyan)}
+.friendsListening>span:nth-child(2){min-width:0;flex:1;display:grid;gap:3px}.friendsListening b,.friendsListening small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.friendsListening b{font-size:10px}.friendsListening small{color:#808b9d;font-size:9px}
+.friendsPlaySong{width:25px;height:25px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--lime);color:#0b1006}
+.friendsProfileModal{position:relative;width:min(440px,calc(100vw - 30px));padding:30px;border:1px solid #303a49;border-radius:20px;background:linear-gradient(145deg,#151b26,#0c1017);box-shadow:0 28px 90px #000b;text-align:center}
+.friendsModalBackdrop{position:fixed;inset:0;z-index:300;display:grid;place-items:center;padding:18px;background:#03050acc;backdrop-filter:blur(9px)}
+.friendsModalClose{position:absolute;right:14px;top:14px;width:32px;height:32px;display:grid;place-items:center;border:1px solid #303846;border-radius:10px;color:#aab2c0}
+.friendsModalAvatar{width:76px;height:76px;display:grid;place-items:center;overflow:hidden;margin:0 auto 14px;border-radius:50%;background:#1b2532;color:var(--lime);font-size:25px;font-weight:700}
+.friendsModalAvatar img{width:100%;height:100%;object-fit:cover}.friendsProfileModal>.eyebrow{font-size:9px}.friendsProfileModal h2{margin:7px 0 3px;font:600 22px "Space Grotesk"}.friendsProfileModal>p{margin:0;color:#8e98a9;font-size:12px}
+.friendsProfileStatus{display:inline-flex;align-items:center;gap:7px;margin:13px 0 5px;color:#939cad;font-size:10px}
+.friendsProfileStat{display:flex;justify-content:space-between;margin-top:14px;padding:12px;border:1px solid #28313e;border-radius:11px;color:#9ba5b6;font-size:11px}.friendsProfileStat b{color:#efb66a}
+.friendsProfileActivity{display:flex;justify-content:center;align-items:center;gap:7px;margin-top:13px;padding:12px;border:1px solid #252d39;border-radius:11px;color:#8e98a9;font-size:10px}.friendsProfileActivity svg{color:#8e98a9}
+.friendsProfileActions{display:flex;justify-content:center;align-items:center;gap:15px;margin-top:12px}
+
+.friendsPage{width:min(100%,1240px);max-width:1240px;padding-top:32px}
+.friendsHeading{margin-bottom:30px}
+.friendsHeading h1{font-size:32px}
+.friendsHeadingIdentity{gap:10px}
+.friendsHeadingIdentity .friendsIconAction{margin-left:7px}
+.friendsColumns{display:grid;grid-template-columns:minmax(260px,.82fr) minmax(420px,1.18fr);gap:28px;align-items:start}
+.friendsAddPanel{min-width:0;padding:20px 7px}
+.friendsAddPanel>.eyebrow{font-size:9px}
+.friendsAddPanel h2{margin:7px 0 8px;font:600 25px "Space Grotesk"}
+.friendsAddPanel>p{max-width:390px;margin:0 0 21px;color:#8f99aa;font-size:12px;line-height:1.6}
+.friendsRequestForm{display:grid;gap:9px}
+.friendsRequestForm>label{color:#c4cad4;font-size:11px;font-weight:600}
+.friendsRequestForm>input{width:100%;height:48px;padding:0 15px;border:1px solid #252d3b;border-radius:13px;background:#0d1119;color:#f6f8fb;font-size:14px;outline:0;transition:border-color .18s,box-shadow .18s}
+.friendsRequestForm>input:focus{border-color:#b7ff3c99;box-shadow:0 0 0 3px #b7ff3c14}
+.friendsRequestForm>input::placeholder{color:#667184}
+.friendsRequestForm>small{color:#858fa0;font-size:10px;line-height:1.5}
+.friendsSendButton{justify-self:start;min-width:184px;height:44px;margin-top:5px;border-radius:12px}
+.friendsDirectory{min-width:0;min-height:450px;padding:19px;border:1px solid #252b39;border-radius:22px;background:linear-gradient(145deg,#111721,#0b0f16);box-shadow:0 18px 50px #0002}
+.friendsDirectoryHeader{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:1px 2px 17px;border-bottom:1px solid #222a36}
+.friendsDirectoryHeader>div:first-child{display:grid;gap:4px}
+.friendsDirectoryHeader h2{margin:0;font:600 23px "Space Grotesk"}
+.friendsDirectoryHeader>div:first-child>span{color:#838e9f;font-size:10px}
+.friendsCounts{display:grid;gap:6px;min-width:90px;color:#a2acbb;font-size:10px}
+.friendsCounts>span{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.friendsCounts i{width:7px;height:7px;border-radius:50%;background:#707989}
+.friendsCounts .online{color:#c8ff75}
+.friendsCounts .online i{background:var(--lime);box-shadow:0 0 9px #b7ff3c88}
+.friendsDirectory .friendsTabs{margin:10px 0 13px}
+.friendsDirectoryList{display:grid;gap:10px}
+.friendsDirectory .friendsEmpty{min-height:230px;border-color:#262e3b;background:#0c1119}
+.friendsDirectory .friendsPersonCard,.friendsDirectory .friendsRequestCard{padding:14px 13px;border-radius:15px;background:#0d131c}
+.friendsDirectory .friendsPersonMain{gap:5px}
+.friendsDirectory .friendsHandle{color:#a9b2c0}
+.friendsBio,.friendsSearchResult .friendsPersonMain small,.friendsRequestCard .friendsPersonMain small{overflow:hidden;color:#7e899a;font-size:10px;line-height:1.45;text-overflow:ellipsis}
+.friendsPersonActions .friendsIconAction{border:1px solid #303947;border-radius:9px;background:#151b25;color:#a5afbe}
+.friendsPersonActions .friendsIconAction:hover{border-color:#b7ff3c66;color:var(--lime)}
+.friendsAccessNotice{display:flex;align-items:center;gap:9px;margin-top:19px;padding:12px;border:1px solid #343b49;border-radius:12px;background:#101620;color:#a9b2c0;font-size:11px;line-height:1.5}
+.friendsAccessNotice>svg{flex:none;color:#bac4d3}
+.friendsAccessNotice .friendsTextButton{flex:none}
+.friendsSearchResult{display:flex;align-items:center;gap:11px;margin-top:18px;padding:12px;border:1px solid #283140;border-radius:14px;background:#101620}
+.friendsSearchResult .friendsPersonMain{gap:4px}
+.friendsSearchResult .friendsPersonMain>b{font-size:12px}
+.friendsSearchResult .friendsAvatar{width:39px;height:39px}
+.friendsRequestForm .friendsSendButton:disabled{opacity:.48;cursor:not-allowed}
+.friendsBioField{grid-column:1/-1}
+.friendsBioField textarea{min-height:76px;resize:vertical;padding:10px 12px;border:1px solid #2a3140;border-radius:10px;background:#0b1017;color:#f5f7fa;font:inherit;outline:0}
+.friendsBioField textarea:focus{border-color:#b7ff3c77;box-shadow:0 0 0 3px #b7ff3c11}
+.friendsSettingsModal{width:min(560px,100%);max-height:min(88vh,760px);overflow-y:auto}
+.friendsSettingsModal>.eyebrow,.friendsLinkModal>.eyebrow{display:block;text-align:center;font-size:9px}
+.friendsSettingsModal>h2,.friendsLinkModal>h2{margin:7px 0 19px;font:600 22px "Space Grotesk"}
+.friendsSettingsModal .friendsProfileForm{margin-top:14px;text-align:left}
+.friendsLinkModal .friendsAccountForm{margin-top:15px;text-align:left}
+.friendsLinkCopy{margin:0;color:#929cad;font-size:11px;line-height:1.6;text-align:left}
+.friendsProfileBio{margin:10px 0 3px;color:#a5afbe;font-size:12px;line-height:1.55}
+
+@media(max-width:760px){
+  .friendsColumns{grid-template-columns:minmax(0,1fr);gap:14px}
+  .friendsAddPanel{padding:15px 4px}
+  .friendsDirectory{min-height:360px;padding:15px}
+  .friendsDirectory .friendsEmpty{min-height:180px}
+  .friendsAuthCard{grid-template-columns:auto minmax(0,1fr);gap:13px;padding:17px}
+  .friendsAccountForm{grid-template-columns:1fr}
+  .friendsHeading{align-items:flex-start}.friendsHeadingIdentity{padding:6px 8px}.friendsHeadingIdentity>img,.friendsHeadingIdentity>span{width:32px;height:32px}
+  .friendsTabs{overflow-x:auto}.friendsTabs button{white-space:nowrap;padding:8px 9px;font-size:10px}
+  .friendsRequestCard,.friendsPersonCard{gap:9px;padding:10px}
+  .friendsPersonActions{gap:1px}.friendsIconAction{width:29px;height:29px}
+}
+@media(max-width:520px){
+  .friendsPage{padding:22px 13px 28px}.friendsHeading{display:grid;gap:13px}.friendsHeadingIdentity{justify-self:start}
+  .friendsHeading h1{font-size:27px}.friendsDirectoryHeader h2{font-size:20px}
+  .friendsProfilePanel{padding:15px}.friendsProfileFields{grid-template-columns:1fr;gap:11px}
+  .friendsPrivacyOptions{display:grid;gap:11px}
+  .friendsPersonCard{flex-wrap:wrap}.friendsPersonMain{min-width:calc(100% - 65px)}
+  .friendsPersonActions{margin-left:auto}.friendsPersonCard>.primary,.friendsPersonCard>.friendsBlockText,.friendsPersonCard>.friendsPendingState,.friendsPersonCard>.friendsOwnedState{margin-left:auto}
+  .friendsRequestCard{flex-wrap:wrap}.friendsRequestActions{width:100%;padding-left:52px}.friendsRequestCard>.small{margin-left:auto}
+  .friendsSearchForm{gap:7px}.friendsSearchForm .primary{min-width:82px;padding:9px 11px}.friendsSearchForm>label{padding:0 10px}
+  .friendsProfileModal{padding:25px 19px}
+}

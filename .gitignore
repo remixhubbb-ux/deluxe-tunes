@@ -5,6 +5,7 @@ android.incomplete-backup/
 .env
 .env.*
 !.env.example
+!.env.production
 
 # Secrets and local credentials
 *.pem

@@ -9,6 +9,8 @@ import {
   Sun, Moon, RotateCcw, MoreHorizontal, UsersRound, Share2, Layers3, UserRound, Mail, LockKeyhole, LogOut, Link2, Upload, ShieldCheck, ShieldAlert, CheckCircle2, Trash2
 } from "lucide-react";
 import "./styles.css";
+import FriendsPage, {friendsApi} from "./FriendsPage.jsx";
+import {API_BASE, BACKEND_ENABLED} from "./apiBase.js";
 import { matchSpotifyTrackToCatalog, normalizeSpotifyMatchText } from "./spotifyImport.js";
 import { calculateTasteProfile, canDownloadFromOrigin, getUserPlayCount, isAppOnline, normalizePlaylistName, resolveAssetUrl } from "./appLogic.js";
 import { getLocalDateKey, getStreakMilestoneInfo, normalizeStreakState, updateStreakForListen } from "./streakLogic.js";
@@ -1807,31 +1809,6 @@ function AccountGate({onAuthenticated}){
   </form><button className="authSwitch" onClick={()=>{setMode(mode==="signup"?"signin":"signup");setError("")}}>{mode==="signup"?"Already have an account? Sign in":"New to Deluxe Tunes? Create an account"}</button><div className="authFoot"><ShieldCheck size={14}/> Your local account data stays on this device in this offline build.</div></div></div>
 }
 
-const resolveApiBase = () => {
-  const runtimeBase = typeof window !== 'undefined' && (
-    window.__DT_API_BASE__ ||
-    window.__DT_OAUTH_BASE__ ||
-    window.__DT_CONFIG__?.apiBaseUrl ||
-    window.__DT_CONFIG__?.oauthBaseUrl ||
-    import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.VITE_OAUTH_BASE_URL ||
-    import.meta.env.VITE_APP_ORIGIN ||
-    ''
-  );
-
-  if (runtimeBase) return String(runtimeBase).replace(/\/+$/, '');
-
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (origin && origin !== 'null' && !origin.startsWith('file:')) return origin;
-
-  if (typeof window !== 'undefined' && window.location.hostname && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:8787';
-  }
-
-  return 'https://deluxe-tunes-api.onrender.com';
-};
-const API_BASE = resolveApiBase();
-const BACKEND_ENABLED = true;
 
 function resolveDiscordArtworkUrl(artwork) {
   if (typeof artwork !== "string" || !artwork.trim()) return "deluxetunes";
@@ -2036,13 +2013,16 @@ function App(){
     }).catch(()=>{});
   },[]);
   useEffect(()=>{
-    const allowedOrigins = new Set([
-      window.location.origin,
-      'null',
+    const localDevOrigins = import.meta.env.DEV ? [
       'http://localhost:8787',
       'http://127.0.0.1:8787',
       'http://localhost:5173',
       'http://127.0.0.1:5173',
+    ] : [];
+    const allowedOrigins = new Set([
+      window.location.origin,
+      'null',
+      ...localDevOrigins,
       'https://deluxe-tunes-api.onrender.com',
       'https://api.deluxetunes.app',
       new URL(API_BASE).origin,
@@ -2638,9 +2618,20 @@ function App(){
     if(Number(window.history.state?.dtDepth||0)>0) window.history.back();
     else { setPage("home"); setSelectedArtist(null); setSelectedAlbum(null); setSelectedPlaylist(null); setShowLyrics(false); }
   }
-  function signOut(){ localStorage.removeItem(STORAGE_KEYS.session); setSettingsOpen(false); setAccount(null); setCurrent(null); setPlaying(false); }
+  async function signOut(){
+    try{
+      await friendsApi("/api/auth/logout",{method:"POST"});
+    }catch(error){
+      console.error("[Friends sign-out]",error.message);
+    }
+    localStorage.removeItem(STORAGE_KEYS.session);
+    setSettingsOpen(false);
+    setAccount(null);
+    setCurrent(null);
+    setPlaying(false);
+  }
 
-  const nav=[["home","Home",Home],["search","Search",Search],["library","Your Library",Library],["artists","Artists",Users],["stats","Your Stats",BarChart3]];
+  const nav=[["home","Home",Home],["search","Search",Search],["library","Your Library",Library],["artists","Artists",Users],["friends","Friends",Users],["stats","Your Stats",BarChart3]];
 
   return <div className="app">
     <aside className="side"><Logo/>
@@ -2660,6 +2651,7 @@ function App(){
       {page==="search"&&<SearchPage songs={filtered} artists={filteredArtists} likes={likes} play={playSong} like={toggleLike} query={query} setQuery={setQuery} back={mobileBack} openArtist={openArtist} recentSearches={recentSearches} setRecentSearches={setRecentSearches} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
       {page==="library"&&<LibraryPage songs={songs} albums={albumRecords} libraryAlbums={libraryAlbums} toggleAlbumLibrary={toggleAlbumLibrary} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong} tab={libraryTab} setTab={setLibraryTab} openArtist={openArtist} openAlbum={openAlbum} playlists={playlists} addPlaylist={addPlaylist} openPlaylist={openPlaylist} editPlaylist={editPlaylist} deletePlaylist={deletePlaylist} follows={follows}/>} 
       {page==="artists"&&<ArtistsPage songs={songs} openArtist={openArtist} follows={follows} toggleFollow={toggleFollow}/>}
+      {page==="friends"&&<FriendsPage localAccount={account} songs={songs} play={playSong} currentSong={current} playing={playing} currentStreak={streak.current}/>}
       {page==="artist-profile"&&<ArtistProfile artist={selectedArtist} songs={songs} stats={stats} livePlays={livePlays} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} back={mobileBack} openAlbum={openAlbum} follows={follows} toggleFollow={toggleFollow} downloads={downloads} downloadSong={downloadSong} playOrderedQueue={playOrderedQueue}/>} 
       {page==="album"&&<AlbumPage album={selectedAlbum} songs={songs} stats={stats} sharedPlays={sharedPlays} likes={likes} play={playSong} like={toggleLike} playAlbum={playAlbum} back={mobileBack} libraryAlbums={libraryAlbums} toggleAlbumLibrary={toggleAlbumLibrary} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
       {page==="playlist"&&<PlaylistPage playlist={selectedPlaylist} songs={songs} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} removeFromPlaylist={removeFromPlaylist} editPlaylist={editPlaylist} deletePlaylist={deletePlaylist} downloads={downloads} downloadSong={downloadSong} back={mobileBack}/>}

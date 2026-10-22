@@ -5,6 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import crypto from 'node:crypto';
 import pg from 'pg';
+import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsAllowedOrigins, getFriendsCookieName, getFriendsCookieOptions} from './server/friendsService.mjs';
 import {createReleaseAnnouncementService,createReleaseCataloguePoller,fetchReleaseCatalog,MAX_WEBHOOK_ATTEMPTS,parseBundledSongCatalog,sendDiscordReleaseWebhookTest} from './releaseAnnouncements.mjs';
 
 const { Pool } = pg;
@@ -24,10 +25,13 @@ try{
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATABASE_URL = process.env.DATABASE_URL || null;
-const DATA_FILE = path.join(__dirname, 'data', 'plays.json');
-const SPOTIFY_SESSION_FILE = path.join(__dirname, 'data', 'spotify-auth.json');
-const DISCORD_SESSION_FILE = path.join(__dirname, 'data', 'discord-auth.json');
-const RELEASE_ANNOUNCEMENTS_FILE = path.join(__dirname, 'data', 'release-announcements.json');
+const DATA_DIR = process.env.DELUXE_TUNES_DATA_DIR
+  ? path.resolve(process.env.DELUXE_TUNES_DATA_DIR)
+  : path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'plays.json');
+const SPOTIFY_SESSION_FILE = path.join(DATA_DIR, 'spotify-auth.json');
+const DISCORD_SESSION_FILE = path.join(DATA_DIR, 'discord-auth.json');
+const RELEASE_ANNOUNCEMENTS_FILE = path.join(DATA_DIR, 'release-announcements.json');
 const DISCORD_NEW_RELEASE_WEBHOOK_URL = process.env.DISCORD_NEW_RELEASE_WEBHOOK_URL || '';
 const DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS = (process.env.DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS || '')
   .split(',').map(id=>id.trim()).filter(id=>/^[a-z0-9][a-z0-9._-]{0,119}$/i.test(id));
@@ -35,11 +39,21 @@ const APP_LINK_BASE = (process.env.APP_LINK_BASE || 'https://deluxetunesapp.page
 const RELEASE_CATALOG_URL = process.env.RELEASE_CATALOG_URL || new URL('/song-catalog.json', APP_LINK_BASE).toString();
 const APP_ORIGIN = (process.env.APP_ORIGIN || process.env.VITE_APP_ORIGIN || `http://localhost:${PORT}`).replace(/\/+$/, '');
 const OAUTH_BASE_URL = (process.env.OAUTH_BASE_URL || process.env.API_BASE_URL || APP_ORIGIN || `http://localhost:${PORT}`).replace(/\/+$/, '');
+const FRIENDS_PRODUCTION = process.env.NODE_ENV === 'production' ||
+  process.env.RENDER === 'true' ||
+  process.env.RENDER === '1' ||
+  OAUTH_BASE_URL.startsWith('https://');
+const FRIENDS_ALLOWED_ORIGINS = getFriendsAllowedOrigins({
+  production: FRIENDS_PRODUCTION,
+  appOrigin: APP_ORIGIN,
+  allowedOrigins: process.env.ALLOWED_APP_ORIGINS,
+});
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || new URL('/api/discord/callback', OAUTH_BASE_URL).toString();
 const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || new URL('/api/spotify/callback', OAUTH_BASE_URL).toString();
 const discordOAuthPending = new Map();
 const spotifyOAuthPending = new Map();
 let dbPool = null;
+let friendsService = null;
 let discordAuth = null;
 let spotifyAuth = null;
 
@@ -250,6 +264,7 @@ async function initDatabase() {
         initialized_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+    await client.query(FRIENDS_SCHEMA_SQL);
   } finally {
     client.release();
   }
@@ -436,6 +451,108 @@ async function writeDiscordSession(session){
 function json(res,status,payload){
   res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Accept','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});
   res.end(JSON.stringify(payload));
+}
+const isFriendsRoute = pathname => pathname.startsWith('/api/auth/') || pathname === '/api/auth' || pathname.startsWith('/api/friends');
+function friendsJson(req,res,status,payload){
+  const headers={
+    'Content-Type':'application/json; charset=utf-8',
+    'Cache-Control':'no-store',
+    'Vary':'Origin',
+  };
+  const origin=req.headers.origin;
+  if(origin&&FRIENDS_ALLOWED_ORIGINS.has(origin)){
+    headers['Access-Control-Allow-Origin']=origin;
+    headers['Access-Control-Allow-Credentials']='true';
+    headers['Access-Control-Allow-Headers']='Content-Type, Accept';
+    headers['Access-Control-Allow-Methods']='GET, POST, PATCH, DELETE, OPTIONS';
+  }
+  res.writeHead(status,headers);
+  res.end(status===204?'':JSON.stringify(payload));
+}
+async function handleApiHealth(req,res){
+  const origin=req.headers.origin;
+  if(origin&&!FRIENDS_ALLOWED_ORIGINS.has(origin)){
+    return friendsJson(req,res,403,{status:'error',error:'This app origin is not allowed.'});
+  }
+  if(req.method==='OPTIONS'){
+    if(!origin)return friendsJson(req,res,400,{status:'error',error:'An allowed app origin is required.'});
+    return friendsJson(req,res,204,{});
+  }
+  if(req.method!=='GET'&&req.method!=='HEAD'){
+    res.setHeader('Allow','GET, HEAD, OPTIONS');
+    return friendsJson(req,res,405,{status:'error',error:'Method not allowed.'});
+  }
+
+  let databaseAvailable=false;
+  try{
+    const pool=await getDatabasePool();
+    if(pool){
+      await pool.query('SELECT 1');
+      databaseAvailable=true;
+    }
+  }catch(error){
+    console.error('[Health] PostgreSQL readiness check failed:',error?.message||'Unknown database error');
+  }
+  const friendsApiAvailable=databaseAvailable&&Boolean(friendsService);
+  const status=friendsApiAvailable?200:503;
+  const response={
+    status:friendsApiAvailable?'ok':'not_ready',
+    database:databaseAvailable?'available':'unavailable',
+    friendsApi:friendsApiAvailable?'available':'unavailable',
+  };
+  if(req.method==='HEAD'){
+    const headers={
+      'Cache-Control':'no-store',
+      'Vary':'Origin',
+    };
+    if(origin&&FRIENDS_ALLOWED_ORIGINS.has(origin)){
+      headers['Access-Control-Allow-Origin']=origin;
+      headers['Access-Control-Allow-Credentials']='true';
+    }
+    res.writeHead(status,headers);
+    return res.end();
+  }
+  return friendsJson(req,res,status,response);
+}
+function friendsClientAddress(req){
+  const forwarded=String(req.headers['x-forwarded-for']||'').split(',').map(value=>value.trim()).filter(Boolean);
+  return forwarded.at(-1)||req.socket?.remoteAddress||'unknown';
+}
+async function readFriendsJson(req){
+  if(Number(req.headers['content-length']||0)>16_384){
+    const error=new Error('The request body is too large.');
+    error.status=413;
+    throw error;
+  }
+  let raw='';
+  for await(const chunk of req){
+    raw+=chunk.toString();
+    if(Buffer.byteLength(raw)>16_384){
+      const error=new Error('The request body is too large.');
+      error.status=413;
+      throw error;
+    }
+  }
+  if(!raw)return {};
+  try{
+    const body=JSON.parse(raw);
+    if(!body||typeof body!=='object'||Array.isArray(body))throw new Error();
+    return body;
+  }catch{
+    const error=new Error('The request body must be a valid JSON object.');
+    error.status=400;
+    throw error;
+  }
+}
+function readFriendsSessionToken(req){
+  const prefix=`${getFriendsCookieName()}=`;
+  const cookie=String(req.headers.cookie||'').split(';').map(part=>part.trim()).find(part=>part.startsWith(prefix));
+  return cookie?cookie.slice(prefix.length):'';
+}
+function sendFriendsError(req,res,error,path){
+  const status=Number(error?.status)||500;
+  if(status>=500)console.error('[Friends API]',path,error?.stack||error?.message||error);
+  friendsJson(req,res,status,{error:status>=500?'The Friends service could not complete this request.':error.message});
 }
 function html(res,status,body){res.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(body);}
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));}
@@ -628,8 +745,96 @@ const releaseCataloguePoller=createReleaseCataloguePoller({
 });
 let shutdownRequested=false;
 
+async function handleFriendsRequest(req,res,requestUrl){
+  const pathname=requestUrl.pathname;
+  const origin=req.headers.origin;
+  if(req.method==='OPTIONS'){
+    if(!origin||!FRIENDS_ALLOWED_ORIGINS.has(origin))return friendsJson(req,res,403,{error:'This app origin is not allowed.'});
+    return friendsJson(req,res,204,{});
+  }
+  if(!origin||!FRIENDS_ALLOWED_ORIGINS.has(origin))return friendsJson(req,res,403,{error:'This app origin is not allowed.'});
+  if(pathname==='/api/auth/logout'&&req.method==='POST'){
+    const token=readFriendsSessionToken(req);
+    if(friendsService)await friendsService.signOut(token);
+    res.setHeader('Set-Cookie',`${getFriendsCookieName()}=; ${getFriendsCookieOptions(FRIENDS_PRODUCTION)}; Max-Age=0`);
+    return friendsJson(req,res,200,{ok:true});
+  }
+  if(!friendsService)return friendsJson(req,res,503,{error:'Friends sign-in requires the server database to be configured.'});
+
+  try{
+    if(pathname==='/api/auth/register'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      const {user,token}=await friendsService.register(body,friendsClientAddress(req));
+      res.setHeader('Set-Cookie',`${getFriendsCookieName()}=${token}; ${getFriendsCookieOptions(FRIENDS_PRODUCTION)}; Max-Age=2592000`);
+      return friendsJson(req,res,201,{user});
+    }
+    if(pathname==='/api/auth/login'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      const {user,token}=await friendsService.signIn(body,friendsClientAddress(req));
+      res.setHeader('Set-Cookie',`${getFriendsCookieName()}=${token}; ${getFriendsCookieOptions(FRIENDS_PRODUCTION)}; Max-Age=2592000`);
+      return friendsJson(req,res,200,{user});
+    }
+    const user=await friendsService.authenticate(readFriendsSessionToken(req));
+    if(!user)return friendsJson(req,res,401,{error:'Sign in with your Deluxe Tunes account to use Friends.'});
+    const userId=user.id;
+    if(pathname==='/api/auth/me'&&req.method==='GET'){
+      return friendsJson(req,res,200,{user:await friendsService.getMe(userId)});
+    }
+    if(pathname==='/api/friends/profile'&&req.method==='GET'){
+      return friendsJson(req,res,200,{user:await friendsService.getMe(userId)});
+    }
+    if(pathname==='/api/friends/profile'&&req.method==='PATCH'){
+      return friendsJson(req,res,200,{user:await friendsService.updateProfile(userId,await readFriendsJson(req))});
+    }
+    if(pathname==='/api/friends/presence'&&req.method==='POST'){
+      return friendsJson(req,res,200,await friendsService.setPresence(userId,await readFriendsJson(req)));
+    }
+    if(pathname==='/api/friends/search'&&req.method==='GET'){
+      return friendsJson(req,res,200,{users:await friendsService.searchUsers(userId,requestUrl.searchParams.get('username'))});
+    }
+    if(pathname==='/api/friends'&&req.method==='GET'){
+      return friendsJson(req,res,200,{friends:await friendsService.listFriends(userId)});
+    }
+    if(pathname==='/api/friends'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      return friendsJson(req,res,201,{request:await friendsService.sendRequest(userId,body.userId)});
+    }
+    if(pathname==='/api/friends/requests'&&req.method==='GET'){
+      return friendsJson(req,res,200,{requests:await friendsService.listRequests(userId)});
+    }
+    if(pathname==='/api/friends/requests'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      return friendsJson(req,res,200,await friendsService.respondToRequest(userId,body.requestId,body.action));
+    }
+    if(pathname==='/api/friends/blocks'&&req.method==='GET'){
+      return friendsJson(req,res,200,{blocks:await friendsService.listBlocks(userId)});
+    }
+    if(pathname==='/api/friends/blocks'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      return friendsJson(req,res,200,await friendsService.blockUser(userId,body.userId));
+    }
+    const blockMatch=pathname.match(/^\/api\/friends\/blocks\/([0-9a-f-]+)$/i);
+    if(blockMatch&&req.method==='DELETE'){
+      return friendsJson(req,res,200,await friendsService.unblockUser(userId,blockMatch[1]));
+    }
+    const profileMatch=pathname.match(/^\/api\/friends\/profiles\/([0-9a-f-]+)$/i);
+    if(profileMatch&&req.method==='GET'){
+      return friendsJson(req,res,200,{profile:await friendsService.getFriendProfile(userId,profileMatch[1])});
+    }
+    const friendMatch=pathname.match(/^\/api\/friends\/([0-9a-f-]+)$/i);
+    if(friendMatch&&req.method==='DELETE'){
+      return friendsJson(req,res,200,await friendsService.removeFriend(userId,friendMatch[1]));
+    }
+    return friendsJson(req,res,404,{error:'Friends API route not found.'});
+  }catch(error){
+    return sendFriendsError(req,res,error,pathname);
+  }
+}
+
 const server=http.createServer(async (req,res)=>{
   const requestUrl=new URL(req.url,`http://${req.headers.host||'localhost'}`);
+  if(requestUrl.pathname==='/api/health')return handleApiHealth(req,res);
+  if(isFriendsRoute(requestUrl.pathname))return handleFriendsRequest(req,res,requestUrl);
   if(requestUrl.pathname.startsWith('/images/') && (req.method==='GET' || req.method==='HEAD')){
     try{
       const relativePath=decodeURIComponent(requestUrl.pathname.slice('/images/'.length));
@@ -969,6 +1174,12 @@ if(isDiscordWebhookTest){
   try {
     console.log('[Startup diagnostic] Starting database...');
     await initDatabase();
+    const socialPool=await getDatabasePool();
+    if(socialPool){
+      friendsService=new FriendsService({pool:socialPool});
+    }else{
+      console.warn('[Friends API] DATABASE_URL is not configured; Friends authentication and data are unavailable.');
+    }
 
     console.log('[Startup diagnostic] Starting Spotify...');
     await initSpotifySession();
