@@ -184,3 +184,9 @@ npm run ios:build
 ## Version
 
 The current package version is `8.1.7`.
+
+## Friends
+
+Friends uses the authenticated PostgreSQL-backed API; device-local profile data alone is not server authentication. A legacy device account must be explicitly connected once from Friends using its device password. This flow does not merge or upload local playlists, settings, tokens, or streaks.
+
+For local development, set `VITE_FRIENDS_API_BASE_URL=http://localhost:8787` and run `npm run server` with a configured PostgreSQL `DATABASE_URL`. Hosted builds use `VITE_API_BASE_URL` and `VITE_FRIENDS_API_BASE_URL` set to `https://deluxe-tunes-api.onrender.com`; Vite embeds these values at build time. Render runs `node server.mjs` from the repository root and should use `/api/health` as its health check.

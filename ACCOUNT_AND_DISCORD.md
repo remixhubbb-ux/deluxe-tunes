@@ -43,3 +43,7 @@ For desktop testing on the same computer as Discord:
 6. Turn on **Settings → Connections → Discord Rich Presence**.
 
 The local server uses Discord IPC to update the desktop Discord client. This requires the Discord desktop app to be running. It is not a cloud/hosted Discord connection.
+
+## Friends server account
+
+Friends requests require a server-authenticated session cookie. Existing device-only accounts can be connected through the one-time Friends setup after verifying the device password; local data is not automatically merged into the server account. Username handles use the complete `Username#1234` format. Keep the production API origin and allowed frontend origins explicitly configured; never enable wildcard credentialed CORS.
