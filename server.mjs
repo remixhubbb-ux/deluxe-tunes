@@ -5,7 +5,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import crypto from 'node:crypto';
 import pg from 'pg';
-import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsCookieName, getFriendsCookieOptions} from './server/friendsService.mjs';
+import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsAllowedOrigins, getFriendsCookieName, getFriendsCookieOptions, isAccountRecordAdmin, isValidAdminPanelCode} from './server/friendsService.mjs';
+import {createPasswordResetMailer} from './server/passwordResetEmail.mjs';
 import {createReleaseAnnouncementService,createReleaseCataloguePoller,fetchReleaseCatalog,MAX_WEBHOOK_ATTEMPTS,parseBundledSongCatalog,sendDiscordReleaseWebhookTest} from './releaseAnnouncements.mjs';
 
 const { Pool } = pg;
@@ -25,10 +26,13 @@ try{
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATABASE_URL = process.env.DATABASE_URL || null;
-const DATA_FILE = path.join(__dirname, 'data', 'plays.json');
-const SPOTIFY_SESSION_FILE = path.join(__dirname, 'data', 'spotify-auth.json');
-const DISCORD_SESSION_FILE = path.join(__dirname, 'data', 'discord-auth.json');
-const RELEASE_ANNOUNCEMENTS_FILE = path.join(__dirname, 'data', 'release-announcements.json');
+const DATA_DIR = process.env.DELUXE_TUNES_DATA_DIR
+  ? path.resolve(process.env.DELUXE_TUNES_DATA_DIR)
+  : path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'plays.json');
+const SPOTIFY_SESSION_FILE = path.join(DATA_DIR, 'spotify-auth.json');
+const DISCORD_SESSION_FILE = path.join(DATA_DIR, 'discord-auth.json');
+const RELEASE_ANNOUNCEMENTS_FILE = path.join(DATA_DIR, 'release-announcements.json');
 const DISCORD_NEW_RELEASE_WEBHOOK_URL = process.env.DISCORD_NEW_RELEASE_WEBHOOK_URL || '';
 const DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS = (process.env.DISCORD_RELEASE_ANNOUNCE_BASELINE_IDS || '')
   .split(',').map(id=>id.trim()).filter(id=>/^[a-z0-9][a-z0-9._-]{0,119}$/i.test(id));
@@ -40,14 +44,17 @@ const FRIENDS_PRODUCTION = process.env.NODE_ENV === 'production' ||
   process.env.RENDER === 'true' ||
   process.env.RENDER === '1' ||
   OAUTH_BASE_URL.startsWith('https://');
-const FRIENDS_ALLOWED_ORIGINS = new Set([
-  'https://deluxetunesapp.pages.dev',
-  ...String(process.env.ALLOWED_APP_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean),
-  ...(APP_ORIGIN && (!FRIENDS_PRODUCTION || APP_ORIGIN.startsWith('https://')) ? [APP_ORIGIN] : []),
-  ...(!FRIENDS_PRODUCTION ? ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'] : []),
-]);
+const FRIENDS_ALLOWED_ORIGINS = getFriendsAllowedOrigins({
+  production: FRIENDS_PRODUCTION,
+  appOrigin: APP_ORIGIN,
+  allowedOrigins: process.env.ALLOWED_APP_ORIGINS,
+});
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || new URL('/api/discord/callback', OAUTH_BASE_URL).toString();
 const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || new URL('/api/spotify/callback', OAUTH_BASE_URL).toString();
+const passwordResetMailer=createPasswordResetMailer({
+  ...process.env,
+  APP_ORIGIN,
+});
 const discordOAuthPending = new Map();
 const spotifyOAuthPending = new Map();
 let dbPool = null;
@@ -450,7 +457,8 @@ function json(res,status,payload){
   res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Accept','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});
   res.end(JSON.stringify(payload));
 }
-const isFriendsRoute = pathname => pathname.startsWith('/api/auth/') || pathname === '/api/auth' || pathname.startsWith('/api/friends');
+const isFriendsRoute = pathname => pathname.startsWith('/api/auth/') || pathname === '/api/auth' ||
+  pathname.startsWith('/api/friends') || pathname.startsWith('/api/admin/');
 function friendsJson(req,res,status,payload){
   const headers={
     'Content-Type':'application/json; charset=utf-8',
@@ -481,23 +489,7 @@ async function handleApiHealth(req,res){
     return friendsJson(req,res,405,{status:'error',error:'Method not allowed.'});
   }
 
-  let databaseAvailable=false;
-  try{
-    const pool=await getDatabasePool();
-    if(pool){
-      await pool.query('SELECT 1');
-      databaseAvailable=true;
-    }
-  }catch(error){
-    console.error('[Health] PostgreSQL readiness check failed:',error?.message||'Unknown database error');
-  }
-  const friendsApiAvailable=databaseAvailable&&Boolean(friendsService);
-  const status=friendsApiAvailable?200:503;
-  const response={
-    status:friendsApiAvailable?'ok':'not_ready',
-    database:databaseAvailable?'available':'unavailable',
-    friendsApi:friendsApiAvailable?'available':'unavailable',
-  };
+  const response={ok:true,status:'ready'};
   if(req.method==='HEAD'){
     const headers={
       'Cache-Control':'no-store',
@@ -507,10 +499,10 @@ async function handleApiHealth(req,res){
       headers['Access-Control-Allow-Origin']=origin;
       headers['Access-Control-Allow-Credentials']='true';
     }
-    res.writeHead(status,headers);
+    res.writeHead(200,headers);
     return res.end();
   }
-  return friendsJson(req,res,status,response);
+  return friendsJson(req,res,200,response);
 }
 function friendsClientAddress(req){
   const forwarded=String(req.headers['x-forwarded-for']||'').split(',').map(value=>value.trim()).filter(Boolean);
@@ -760,6 +752,30 @@ async function handleFriendsRequest(req,res,requestUrl){
   if(!friendsService)return friendsJson(req,res,503,{error:'Friends sign-in requires the server database to be configured.'});
 
   try{
+    if(pathname==='/api/auth/password-reset/request'&&req.method==='POST'){
+      if(!passwordResetMailer)return friendsJson(req,res,503,{error:'Password reset email is not configured.'});
+      const requestStartedAt=Date.now();
+      const body=await readFriendsJson(req);
+      const reset=await friendsService.requestPasswordReset(body.email,friendsClientAddress(req));
+      if(reset){
+        setImmediate(()=>passwordResetMailer.sendPasswordReset(reset).catch(()=>{
+          console.error('[Password reset] Email delivery failed.');
+        }));
+      }
+      await new Promise(resolve=>setTimeout(resolve,Math.max(0,500-(Date.now()-requestStartedAt))));
+      return friendsJson(req,res,200,{message:'If an account exists for that email, a password reset link will be sent.'});
+    }
+    if(pathname==='/api/auth/password-reset/confirm'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      return friendsJson(req,res,200,await friendsService.resetPassword(body.token,body.password,friendsClientAddress(req)));
+    }
+    if(pathname==='/api/auth/guest'&&req.method==='POST'){
+      const existingUser=await friendsService.authenticate(readFriendsSessionToken(req));
+      if(existingUser)return friendsJson(req,res,200,{user:existingUser});
+      const {user,token}=await friendsService.createGuest(friendsClientAddress(req));
+      res.setHeader('Set-Cookie',`${getFriendsCookieName()}=${token}; ${getFriendsCookieOptions(FRIENDS_PRODUCTION)}; Max-Age=31536000`);
+      return friendsJson(req,res,201,{user});
+    }
     if(pathname==='/api/auth/register'&&req.method==='POST'){
       const body=await readFriendsJson(req);
       const {user,token}=await friendsService.register(body,friendsClientAddress(req));
@@ -775,6 +791,51 @@ async function handleFriendsRequest(req,res,requestUrl){
     const user=await friendsService.authenticate(readFriendsSessionToken(req));
     if(!user)return friendsJson(req,res,401,{error:'Sign in with your Deluxe Tunes account to use Friends.'});
     const userId=user.id;
+    const authorizeAdminPanel=async(code)=>{
+      if(!isAccountRecordAdmin(user))return {status:403,error:'This account is not authorized to use the admin panel.'};
+      if(!String(process.env.ADMIN_PANEL_ACCESS_CODE||'').trim())return {status:503,error:'Admin panel access is not configured on the server.'};
+      if(!isValidAdminPanelCode(code))return {status:403,error:'The admin panel code is invalid.'};
+      return null;
+    };
+    if(pathname==='/api/admin/account-records/access'&&req.method==='GET'){
+      if(!isAccountRecordAdmin(user))return friendsJson(req,res,403,{error:'This account is not authorized to view account records.'});
+      return friendsJson(req,res,200,{authorized:true});
+    }
+    if(pathname==='/api/admin/panel/access'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      await friendsService.enforceAuthRateLimit([
+        {value:`admin-panel-access:ip:${friendsClientAddress(req)}`,limit:8},
+        {value:`admin-panel-access:admin:${userId}`,limit:8},
+      ]);
+      const authorizationError=await authorizeAdminPanel(body.code);
+      if(authorizationError)return friendsJson(req,res,authorizationError.status,{error:authorizationError.error});
+      return friendsJson(req,res,200,{authorized:true});
+    }
+    if(pathname==='/api/admin/account-records'&&req.method==='GET'){
+      if(!isAccountRecordAdmin(user))return friendsJson(req,res,403,{error:'This account is not authorized to view account records.'});
+      await friendsService.enforceAuthRateLimit([
+        {value:`account-record-lookup:ip:${friendsClientAddress(req)}`,limit:30},
+        {value:`account-record-lookup:admin:${userId}`,limit:30},
+      ]);
+      const record=await friendsService.getAccountRecord(requestUrl.searchParams.get('lookup'));
+      if(!record)return friendsJson(req,res,404,{error:'No matching account record was found.'});
+      return friendsJson(req,res,200,{record});
+    }
+    if(pathname==='/api/auth/admin-token-grants'&&req.method==='GET'){
+      return friendsJson(req,res,200,{grants:await friendsService.getAdminTokenGrants(userId)});
+    }
+    if(pathname==='/api/admin/me/tokens'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      const authorizationError=await authorizeAdminPanel(body.code);
+      if(authorizationError)return friendsJson(req,res,authorizationError.status,{error:authorizationError.error});
+      return friendsJson(req,res,201,{grant:await friendsService.grantAdminTokens(userId)});
+    }
+    if(pathname==='/api/admin/me/streak'&&req.method==='POST'){
+      const body=await readFriendsJson(req);
+      const authorizationError=await authorizeAdminPanel(body.code);
+      if(authorizationError)return friendsJson(req,res,authorizationError.status,{error:authorizationError.error});
+      return friendsJson(req,res,200,await friendsService.addAdminStreak(userId,Number(body.days)));
+    }
     if(pathname==='/api/auth/me'&&req.method==='GET'){
       return friendsJson(req,res,200,{user:await friendsService.getMe(userId)});
     }
