@@ -1,19 +1,21 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import packageJson from "../package.json";
 import {
   Home, Search, Library, ListMusic, BarChart3, Heart, Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Crown, Shuffle, Repeat2, Clock3,
   Disc3, Users, ChevronRight, ArrowLeft, Sparkles, Zap, Radio, Headphones, Mic2, Music2,
-  Settings, Download, Plus, ListPlus, Pencil, ListOrdered, Timer, SlidersHorizontal, X, GripVertical, BadgeCheck,
-  Sun, Moon, RotateCcw, MoreHorizontal, UsersRound, Share2, Layers3, UserRound, Mail, LockKeyhole, LogOut, Link2, Upload, ShieldCheck, ShieldAlert, CheckCircle2, Trash2
+  Settings, Download, Plus, UserPlus, ListPlus, Pencil, ListOrdered, Timer, SlidersHorizontal, X, GripVertical, BadgeCheck, ShoppingCart,
+  Sun, Moon, RotateCcw, MoreHorizontal, UsersRound, Share2, Layers3, UserRound, Mail, LockKeyhole, LogOut, Link2, Upload, ShieldCheck, ShieldAlert, CheckCircle2, Trash2, Gift
 } from "lucide-react";
 import "./styles.css";
-import FriendsPage, {friendsApi} from "./FriendsPage.jsx";
+import {friendsApi} from "./FriendsPage.jsx";
 import {API_BASE, BACKEND_ENABLED} from "./apiBase.js";
 import { matchSpotifyTrackToCatalog, normalizeSpotifyMatchText } from "./spotifyImport.js";
-import { calculateTasteProfile, canDownloadFromOrigin, getUserPlayCount, isAppOnline, normalizePlaylistName, resolveAssetUrl } from "./appLogic.js";
-import { getLocalDateKey, getStreakMilestoneInfo, normalizeStreakState, updateStreakForListen } from "./streakLogic.js";
+import { buildArtistSearchCatalog, calculateTasteProfile, canCacheDownloadedAsset, canDownloadFromOrigin, filterVisibleAlbums, getArtistPlaybackSequence, getNextArtistSong, getNextCatalogSong, getPreviousArtistSong, getUserPlayCount, isAppOnline, isVisibleAlbum, normalizePlaybackResumeState, normalizePlaylistName, removeOneQueuedSong, resolveAssetUrl } from "./appLogic.js";
+import { getLocalDateKey, getStreakMilestoneInfo, normalizeStreakState, setStreakDays, updateStreakForListen } from "./streakLogic.js";
+import { claimStreakRewards, getActiveStreakDays, getAvailableRewardCount, reconcileStreakRewards, STREAK_REWARD_MILESTONES } from "./streakRewards.js";
+import { applyAdminTokenGrants, redeemTuneTokenCode } from "./storeCodes.js";
 
 let queueSongAction=()=>{};
 
@@ -191,6 +193,12 @@ const DEMOS = [
   {id:"keisha-becky-remix-aitch",title:"Keisha & Becky - Remix",artist:"Russ Millions, Tion Wayne, Aitch, Swarmz, Sav'o, JAY1",album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/Russ x Tion Wayne Keisha Becky Remix ft Aitch JAY1 Sav O Swarmz.mp3",length:252,artwork:"/images/keisha-becky-aitch.png",plays:197623950},
   {id:"rmb-german-remix-aitch",title:"RMB (Ring My Bell) - German Remix",artist:"Aitch",album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/RMB (Ring My Bell) - German Remix - aitch.mp3",length:176,artwork:"/images/rmb (ring my bell) [german remix] - aitch.jpg",plays:788797},
   {id:"my-g-aitch-ed-sheeran",title:"My G",artist:"Aitch, Ed Sheeran",featuredArtists:["Ed Sheeran"],album:"",genre:"UK Rap",color:["#0b4ea2","#4bc8ff"],bpm:0,file:"/audio/My G - aitch, ed sheeran.mp3",length:192,artwork:"/images/my-g-aitch-ed-sheeran.png",plays:40944952},
+  {id:"shape-of-you-ed-sheeran",title:"Shape Of You",artist:"Ed Sheeran",album:"",genre:"Pop",color:["#3b82f6","#22c55e"],bpm:0,file:"/audio/Shape Of You - Ed Sheeran.mp3",length:233.8,artwork:"/images/shape-of-you-ed-sheeran.png",plays:5130160550},
+  {id:"perfect-ed-sheeran",title:"Perfect",artist:"Ed Sheeran",album:"",genre:"Pop",color:["#2dd4bf","#f8fafc"],bpm:0,file:"/audio/Perfect-ed-sheeran.mp3",length:263.993,artwork:"/images/perfect-ed-sheeran.png",plays:4137691776},
+  {id:"photograph-ed-sheeran",title:"Photograph",artist:"Ed Sheeran",album:"",genre:"Pop",color:["#f4b942","#f8fafc"],bpm:0,file:"/audio/photograph-ed-sheeran.mp3",length:258.93,artwork:"/images/photograph-ed-sheeran.png",plays:3574459921},
+  {id:"thinking-out-loud-ed-sheeran",title:"Thinking Out Loud",artist:"Ed Sheeran",album:"",genre:"Pop",color:["#ec4899","#f8fafc"],bpm:0,file:"/audio/thinking-out-loud-ed-sheeran.mp3",length:281.73,artwork:"/images/thinking-out-loud-ed-sheeran.png",plays:3236557323},
+  {id:"galway-girl-ed-sheeran",title:"Galway Girl",artist:"Ed Sheeran",album:"",genre:"Pop",color:["#22c55e","#f8fafc"],bpm:0,file:"/audio/galway-girl-ed-sheeran.mp3",length:149.7,artwork:"/images/galway-girl-ed-sheeran.png",plays:1645535314},
+  {id:"castle-on-the-hill-ed-sheeran",title:"Castle On The Hill",artist:"Ed Sheeran",album:"",genre:"Pop",color:["#f59e0b","#f8fafc"],bpm:0,file:"/audio/Castle-on-the-hill-ed-sheeran.mp3",length:261.34,artwork:"/images/Castle-on-the-hill-ed-sheeran.png",plays:1652639640},
   {id:"sienna-you-stole-the-show",title:"You Stole The Show",artist:"SIENNA SPIRO",album:"You Stole The Show",genre:"Pop",color:["#d9a7c7","#5b86e5"],bpm:0,file:"/audio/you-stole-the-show-sienna-spiro.mp3",length:207,artwork:"/images/sienna-spiro-you-stole-the-show.png",plays:212847314},
   {id:"sienna-maybe",title:"MAYBE.",artist:"SIENNA SPIRO",album:"MAYBE.",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/MAYBE. - sienna spiro.mp3",length:235,artwork:"/images/artist-sienna-spiro.jpg",plays:193763835},
   {id:"sienna-hes-not-my-baby-im-his",title:"He’s Not My Baby, I’m His",artist:"SIENNA SPIRO",album:"He’s Not My Baby, I’m His",genre:"Pop",color:["#6f2b12","#d08a52"],bpm:0,file:"/audio/He s Not My Baby I m His - sienna spiro.mp3",length:159,artwork:"/images/artist-sienna-spiro.jpg",plays:21512413},
@@ -256,6 +264,7 @@ const DEMOS = [
   {id:"flowers-say-my-name-arrdee",title:"Flowers (Say My Name)",artist:"ArrDee",album:"Flowers (Say My Name)",genre:"UK Rap",color:["#b7ff3c","#20e3ff"],bpm:0,file:"/audio/flowers-say-my-name-arrdee.mp3",length:152,artwork:"/images/flowers-arrdee.png",explicit:true,plays:156614184},
   {id:"great-expectation-sienna-spiro",title:"Great Expectation",artist:"SIENNA SPIRO",album:"Great Expectation",genre:"Pop",color:["#d9a7c7","#5b86e5"],bpm:0,file:"/audio/great-expectation-sienna-spiro.mp3",length:163,artwork:"/images/great-expectation-sienna-spiro.png",plays:121836071},
   {id:"sf-cypher-24",title:"SF Cypher 24",artist:"Toddla T, STEEZE FACTORY, BackRoad Gee, OneDa, Milli Major, Reepa, ZOELLZ, Teewhy, N3, Spektive",album:"SF Cypher 24",genre:"UK Rap",color:["#20e3ff","#b7ff3c"],bpm:0,file:"/audio/sf-cypher-24.mp3",length:0,artwork:"/images/sf-cypher-24-toddla-t.png",explicit:true,plays:29721},
+  {id:"money-on-my-mind-sam-smith",title:"Money On My Mind",artist:"Sam Smith",album:"",genre:"Pop",color:["#372442","#aa8ac3"],bpm:0,file:"/audio/Money On My Mind - sam smith.mp3",length:194.072381,artwork:"/images/money-on-my-mind-sam-smith.png",plays:443492511},
 ];
 
 const lyricTime = stamp => {
@@ -920,6 +929,68 @@ const LYRICS = {
   ],
   "bad-oneda": [[0, "You caught us, we're still working on getting lyrics for this one."]],
   "set-it-off-oneda": [[0, "You caught us, we're still working on getting lyrics for this one."]],
+  "money-on-my-mind-sam-smith": [
+    [6.15, "When I signed my deal"],
+    [7.95, "I felt pressure"],
+    [9.81, "Don't want to see the numbers"],
+    [11.55, "I wanna see Heaven"],
+    [13.47, "You say, \"Could you write a song for me?\""],
+    [17.17, "I say, \"I’m sorry I won’t do that,\" happily"],
+    [20.50, ""],
+    [20.51, "When I go home I tend to close the door"],
+    [27.53, "I never want to know"],
+    [31.08, "So sing with me, can't you see?"],
+    [34.65, ""],
+    [34.78, "I don't have money on my mind"],
+    [37.54, "Money on my mind"],
+    [39.23, "I do it for, I do it for the love"],
+    [42.02, "I don't have money on my mind"],
+    [44.69, "Money on my mind"],
+    [46.48, "I do it for, I do it for the love"],
+    [49.10, "I do it for the love"],
+    [52.61, "I do it for the love"],
+    [54.61, ""],
+    [56.39, "Please don't get me wrong"],
+    [58.07, "I want to keep it moving"],
+    [59.98, "I know what that requires"],
+    [62.01, "I'm not foolish"],
+    [63.61, "Please can you make this work for me?"],
+    [67.25, "'Cause I'm not a puppet, I will work against your strings"],
+    [70.67, ""],
+    [70.70, "When I go home I tend to close the door"],
+    [77.71, "I never want to know"],
+    [81.18, "So sing with me, can't you see?"],
+    [84.81, ""],
+    [85.02, "I don't have money on my mind"],
+    [87.78, "Money on my mind"],
+    [89.45, "I do it for, I do it for the love"],
+    [92.22, "I don't have money on my mind"],
+    [94.86, "Money on my mind"],
+    [96.58, "I do it for, I do it for the love"],
+    [99.29, "I do it for the love"],
+    [102.85, "I do it for the love"],
+    [104.74, ""],
+    [107.03, "When the sun was set"],
+    [109.18, "Don't you fret"],
+    [111.03, "No, I have no money on my mind"],
+    [114.16, "No money on my mind, no money on my mind"],
+    [118.20, "No, I have no money on my mind"],
+    [121.56, "When the sun was set"],
+    [123.65, "Don't you fret"],
+    [125.38, "No, I have no money on my mind"],
+    [128.51, "No money on my mind, no money on my mind"],
+    [132.56, "No, I have no money on my mind"],
+    [135.65, "Just love"],
+    [137.77, ""],
+    [161.20, "Money on my mind"],
+    [162.85, "Money on my mind"],
+    [164.64, "I do it for, I do it for the love"],
+    [167.39, "I don't have money on my mind"],
+    [170.19, "Money on my mind"],
+    [171.83, "I do it for, I do it for the love"],
+    [174.58, "I do it for the love"],
+    [178.01, "I do it for the love"]
+  ],
 };
 
 LYRICS["rmb-aitch"] = [
@@ -945,6 +1016,24 @@ LYRICS["psycho-aitch"] = [
   [65.96,"Oh no, you got to be kiddin'"],[68.28,"You say how much you respect women"],[71.16,"I'm buying your meals, I'm paying your bills"],[74.15,"While you're out here, switchin' positions (ah)"],[77.23,"Hold up, wait, babe, I ain't finished (hold up, wait, yeah)"],[80.44,"All up in my face, girl, you trippin' (why you trippin' for?)"],[83.10,"It's not what it looks like, they're bruises not love bites (haha)"],[86.38,"Good luck with the hole that you're diggin'"],[88.74,"I don't fuck with Emily, on my life"],[91.49,"Had to cut off Beverly, at least I tried (I swear I tried)"],[94.53,"All these other girls that I can't see (huh)"],[97.48,"I just want a lil' Anne-Marie (haha, ha)"],[102.21,"Oh no, call me crazy all you like (ugh)"],[107.86,"Oh no, turns out I was fucking right"],[112.55,"You met up with Veronica late last night"],[115.26,"You had a bit of Elena on the side"],[118.42,"Was chattin' up Anita all last week"],[121.35,"And now you're doin' Nina, how'd you even meet her?"],[124.43,"Hittin' on Bianca, are you dumb? (What)"],[127.32,"Got with Alexandra and her mum (nah)"],[130.24,"You're tellin' every girl they drive you mad (ugh)"],[133.10,"Yet you're calling me the psychopath"],[136.10,"I'm the psychopath"],[139.11,"I'm the psychopath (haha)"],[142.02,"Oh, I'm a psycho"],[144.64,"I'm the psychopath"],[147.59,"Oh, I'm the psycho"],[150.94,""],[159.78,"Oh, I'm the psycho"]
 ];
 
+LYRICS["shape-of-you-ed-sheeran"] = [
+  [9.66,"The club isn't the best place to find a lover"],[12.16,"So the bar is where I go"],[14.91,"Me and my friends at the table doing shots"],[17.17,"Drinking faster and then we talk slow"],[19.92,"Come over and start up a conversation with just me"],[22.41,"And trust me I'll give it a chance now"],[24.92,"Take my hand, stop"],[26.16,"Put Van The Man on the jukebox"],[27.16,"And then we start to dance"],[28.41,"And now I'm singing like"],[29.91,"Girl, you know I want your love"],[32.16,"Your love was handmade for somebody like me"],[35.41,"Come on now, follow my lead"],[37.17,"I may be crazy, don't mind me"],[39.66,"Say, boy, let's not talk too much"],[42.41,"Grab on my waist and put that body on me"],[45.41,"Come on now, follow my lead"],[47.16,"Come, come on now, follow my lead"],[50.91,"I'm in love with the shape of you"],[53.41,"We push and pull like a magnet do"],[55.66,"Although my heart is falling too"],[58.16,"I'm in love with your body"],[60.67,"And last night you were in my room"],[63.16,"And now my bedsheets smell like you"],[65.41,"Every day discovering something brand new"],[68.17,"I'm in love with your body"],[69.91,"Oh I oh I oh I oh I"],[73.41,"I'm in love with your body"],[74.91,"Oh I oh I oh I oh I"],[78.42,"I'm in love with your body"],[79.91,"Oh I oh I oh I oh I"],[83.17,"I'm in love with your body"],[85.42,"Every day discovering something brand new"],[88.16,"I'm in love with the shape of you"],[89.91,"One week in we let the story begin"],[91.91,"We're going out on our first date"],[94.92,"You and me are thrifty"],[96.05,"So go all you can eat"],[97.05,"Fill up your bag and I fill up a plate"],[99.77,"We talk for hours and hours about the sweet and the sour"],[102.27,"And how your family is doing okay"],[104.77,"Leave and get in a taxi, then kiss in the backseat"],[107.52,"Tell the driver make the radio play"],[109.27,"And I'm singing like"],[110.17,"Girl, you know I want your love"],[112.18,"Your love was handmade for somebody like me"],[115.42,"Come on now, follow my lead"],[117.17,"I may be crazy, don't mind me"],[119.92,"Say, boy, let's not talk too much"],[122.17,"Grab on my waist and put that body on me"],[125.17,"Come on now, follow my lead"],[126.92,"Come, come on now, follow my lead"],[130.67,"I'm in love with the shape of you"],[133.42,"We push and pull like a magnet do"],[135.67,"Although my heart is falling too"],[138.17,"I'm in love with your body"],[140.67,"And last night you were in my room"],[143.42,"And now my bedsheets smell like you"],[145.17,"Every day discovering something brand new"],[148.17,"I'm in love with your body"],[149.92,"Oh I oh I oh I oh I"],[153.42,"I'm in love with your body"],[154.93,"Oh I oh I oh I oh I"],[158.18,"I'm in love with your body"],[159.92,"Oh I oh I oh I oh I"],[163.42,"I'm in love with your body"],[164.92,"Every day discovering something brand new"],[168.17,"I'm in love with the shape of you"],[169.93,"Come on, be my baby, come on"],[172.68,"Come on, be my baby, come on"],[174.92,"Come on, be my baby, come on"],[177.43,"Come on, be my baby, come on"],[180.18,"Come on, be my baby, come on"],[182.42,"Come on, be my baby, come on"],[185.17,"Come on, be my baby, come on"],[187.42,"Come on, be my baby, come on"],[190.67,"I'm in love with the shape of you"],[193.43,"We push and pull like a magnet do"],[195.68,"Although my heart is falling too"],[198.42,"I'm in love with your body"],[200.67,"Last night you were in my room"],[203.17,"And now my bedsheets smell like you"],[205.42,"Every day discovering something brand new"],[208.17,"I'm in love with your body"],[209.75,"Come on, be my baby, come on"],[212.67,"Come on, be my baby, come on"],[213.74,"I'm in love with your body"],[215.00,"Come on, be my baby, come on"],[217.50,"Come on, be my baby, come on"],[218.75,"I'm in love with your body"],[219.99,"Come on, be my baby, come on"],[222.50,"Come on, be my baby, come on"],[223.74,"I'm in love with your body"],[225.49,"Every day discovering something brand new"],[228.24,"I'm in love with the shape of you"]
+];
+LYRICS["perfect-ed-sheeran"] = [
+  [2.99,"I found a love"],[4.43,""],[5.90,"For me"],[8.50,""],[10.47,"Darling, just dive right in"],[13.04,""],[14.20,"And follow my lead"],[16.34,""],[18.00,"Well, I found a girl"],[19.99,""],[21.79,"Beautiful and sweet"],[24.20,""],[25.32,"Oh, I never knew you were the someone waiting for me"],[32.19,"'Cause we were just kids when we fell in love"],[36.87,"Not knowing what it was"],[40.64,"I will not give you up this time"],[48.09,"But darling, just kiss me slow"],[51.93,"Your heart is all I own"],[55.66,"And in your eyes you're holding mine"],[61.56,""],[62.45,"Baby, I'm"],[65.19,""],[66.25,"Dancing in the dark"],[69.81,"With you between my arms"],[73.87,"Barefoot on the grass"],[77.55,"Listening to our favorite song"],[80.68,"When you said you looked a mess"],[84.34,"I whispered underneath my breath"],[87.91,"But you heard it, darling, you look perfect tonight"],[95.22,""],[101.32,"Well I found a woman"],[103.56,""],[104.96,"Stronger than anyone I know"],[108.07,""],[108.91,"She shares my dreams, I hope that someday I'll share her home"],[116.43,"I found a love"],[118.72,""],[120.82,"To carry more than just my secrets"],[124.69,"To carry love, to carry children of our own"],[130.93,"We are still kids, but we're so in love"],[135.48,"Fighting against all odds"],[139.13,"I know we'll be alright this time"],[146.67,"Darling, just hold my hand"],[150.31,"Be my girl, I'll be your man"],[154.18,"I see my future in your eyes"],[160.59,""],[160.90,"Baby, I'm"],[164.83,"Dancing in the dark"],[168.33,"With you between my arms"],[172.47,"Barefoot on the grass"],[176.16,"Listening to our favorite song"],[179.28,"When I saw you in that dress"],[182.72,"Looking so beautiful I don't deserve this"],[189.10,"Darling, you look perfect tonight"],[194.16,""],[206.49,"Baby, I'm dancing in the dark"],[213.72,"With you between my arms"],[217.83,"Barefoot on the grass"],[221.58,"Listening to our favorite song"],[224.79,"I have faith in what I see"],[228.29,"Now I know I have met an angel in person"],[234.61,"And she looks perfect"],[238.31,"I don't deserve this"],[242.50,"You look perfect tonight"]
+];
+LYRICS["photograph-ed-sheeran"] = [
+  [16.72,"Loving can hurt"],[21.18,"Loving can hurt sometimes"],[25.58,"But it's the only thing that I know"],[34.52,"When it gets hard"],[38.51,"You know it can get hard sometimes"],[43.50,"It is the only thing that"],[46.49,"Makes us feel alive"],[53.77,"We keep this love in a photograph"],[58.24,"We made these memories for ourselves"],[61.81,"Where our eyes are never closing"],[64.20,"Hearts are never broken"],[66.43,"And time's forever frozen still"],[70.24,"So you can keep me"],[73.41,"Inside the pocket of your ripped jeans"],[77.71,"Holding me closer till our eyes meet"],[82.33,"You won't ever be alone"],[86.65,"Wait for me to come home"],[92.19,"Loving can heal"],[96.77,"Loving can mend your soul"],[101.20,"And it's the only thing that I know, know"],[109.36,"I swear it will get easier"],[113.23,"Remember that with every piece of you"],[117.52,"Hmm, and it's the only thing"],[121.47,"We take with us when we die"],[127.62,"Hmm, we keep this love in a photograph"],[133.79,"We made these memories for ourselves"],[137.29,"Where our eyes are never closing"],[139.77,"Hearts were never broken"],[142.04,"And time's forever frozen still"],[145.12,"So you can keep me"],[148.93,"Inside the pocket of your ripped jeans"],[153.15,"Holding me closer till our eyes meet"],[157.61,"You won't ever be alone"],[163.52,"And if you hurt me"],[166.54,"That's okay, baby, only words bleed"],[171.22,"Inside these pages you just hold me"],[175.45,"And I won't ever let you go"],[179.92,"Wait for me to come home"],[184.42,"Wait for me to come home"],[188.79,"Wait for me to come home"],[193.21,"Wait for me to come home"],[198.87,"Oh, you can fit me"],[201.59,"Inside the necklace you got when you were sixteen"],[206.57,"Next to your heartbeat where I should be"],[210.96,"Keep it deep within your soul"],[216.94,"And if you hurt me"],[219.81,"Well that's okay, baby, only words bleed"],[224.63,"Inside these pages you just hold me"],[228.76,"I won't ever let you go"],[234.47,"When I'm away"],[237.83,"I will remember how you kissed me"],[242.28,"Under the lamppost back on Sixth Street"],[246.67,"Hearing you whisper through the phone"],[251.16,"Wait for me to come home"]
+];
+LYRICS["thinking-out-loud-ed-sheeran"] = [
+  [1.22,"When your legs don't work like they used to before"],[7.31,"And I can't sweep you off of your feet"],[13.36,"Will your mouth still remember the taste of my love?"],[19.47,"Will your eyes still smile from your cheeks?"],[23.42,"And, darlin', I will be lovin' you till we're seventy"],[35.60,"And, baby, my heart could still fall as hard at twenty-three"],[45.85,"And I'm thinkin' 'bout how"],[48.69,"People fall in love in mysterious ways"],[54.73,"Maybe just the touch of a hand"],[60.65,"Well, me, I fall in love with you every single day"],[66.73,"And I just wanna tell you I am"],[71.66,"So, honey, now"],[77.08,"Take me into your lovin' arms"],[83.13,"Kiss me under the light of a thousand stars"],[89.10,"Place your head on my beatin' heart"],[93.69,"I'm thinkin' out loud"],[96.60,"Maybe we found love right where we are"],[104.45,"When my hair's all but gone and my memory fades"],[110.60,"And the crowds don't remember my name"],[116.54,"When my hands don't play the strings the same way, mmm"],[122.73,"I know you will still love me the same"],[126.80,"'Cause, honey, your soul could never grow old, it's evergreen"],[138.92,"And, baby, your smile's"],[141.98,"Forever in my mind and memory"],[149.33,"I'm thinkin' 'bout how"],[152.03,"People fall in love in mysterious ways"],[157.90,"Maybe it's all part of a plan"],[163.93,"Well, I'll just keep on makin' the same mistakes"],[170.19,"Hopin' that you'll understand"],[175.32,"That, baby, now"],[180.36,"Take me into your lovin' arms"],[186.46,"Kiss me under the light of a thousand stars"],[192.51,"Place your head on my beatin' heart"],[196.63,"I'm thinkin' out loud"],[199.73,"And maybe we found love right where we are, oh-oh"],[205.27,"Lo-lo-lo, lo-lo-lo, lo-lo-lo, lo-lo-lo, love"],[209.71,"So, baby, now"],[215.00,"Take me into your lovin' arms"],[221.12,"Kiss me under the light of a thousand stars"],[225.55,"Oh, darlin', place your head on my beatin' heart"],[231.40,"I'm thinkin' out loud"],[234.33,"That maybe we found love right where we are"],[240.36,"Oh, baby, we found love right where we are"],[247.04,"And we found love right where we are"]
+];
+LYRICS["galway-girl-ed-sheeran"] = [
+  [0.27,"She played the fiddle in an Irish band"],[2.65,"But she fell in love with an English man"],[5.33,"Kissed her on the neck and then I took her by the hand"],[7.55,"Said, \"Baby, I just want to dance\""],[9.35,"I met her on Grafton Street right outside of the bar"],[12.09,"She shared a cigarette with me while her brother played the guitar"],[14.52,"She asked me, \"What does it mean, the Gaelic ink on your arm?\""],[16.93,"Said it was one of my friend's songs, do you want to drink on?"],[19.28,"She took Jamie as a chaser, Jack for the fun"],[21.84,"She got Arthur on the table with Johnny riding as shotgun"],[24.62,"Chatted some more, one more drink at the bar"],[26.54,"Then put Van on the jukebox, got up to dance"],[29.02,"You know she played the fiddle in an Irish band"],[31.61,"But she fell in love with an English man"],[33.96,"Kissed her on the neck and then I took her by the hand"],[36.30,"Said, \"Baby, I just want to dance\""],[38.20,"With my pretty little Galway girl"],[42.77,"You're my pretty little Galway girl"],[48.13,"You know she beat me at darts and then she beat me at pool"],[50.60,"And then she kissed me like there was nobody else in the room"],[52.98,"As last orders were called was when she stood on the stool"],[55.43,"After dancing to céilí, singing to trad tunes"],[57.82,"I never heard Carrickfergus ever sung so sweet"],[60.25,"A capella in the bar, using her feet for a beat"],[62.62,"Oh, I could have that voice playing on repeat for a week"],[65.02,"And in this packed-out room, swear she was singing to me"],[67.30,"You know she played the fiddle in an Irish band"],[69.91,"But she fell in love with an English man"],[72.37,"Kissed her on the neck and then I took her by the hand"],[74.68,"Said, \"Baby, I just want to dance\""],[76.60,"My pretty little Galway girl"],[79.94,"My, my, my, my, my, my, my Galway girl"],[84.77,"My, my, my, my, my, my, my Galway girl"],[89.61,"My, my, my, my, my, my, my Galway girl"],[96.21,"And now we've outstayed our welcome and it's closing time"],[98.73,"I was holding her hand, her hand was holding mine"],[101.06,"Our coats both smell of smoke, whiskey and wine"],[103.53,"As we filled up our lungs with the cold air of the night"],[105.98,"I walked her home, then she took me inside"],[108.06,"To finish some Doritos and another bottle of wine"],[110.76,"I swear I'm gonna put you in a song that I write"],[113.03,"About a Galway girl and a perfect night"],[115.55,"She played the fiddle in an Irish band"],[117.97,"But she fell in love with an English man"],[120.43,"Kissed her on the neck and then I took her by the hand"],[122.67,"Said, \"Baby, I just want to dance\""],[124.64,"My pretty little Galway girl"],[127.99,"My, my, my, my, my, my, my Galway girl"],[132.78,"My, my, my, my, my, my, my Galway girl"],[137.55,"My, my, my, my, my, my, my Galway girl"]
+];
+LYRICS["castle-on-the-hill-ed-sheeran"] = [
+  [7.65,"When I was six years old, I broke my leg"],[14.68,"When I was running from my brother and his friends"],[21.79,"And tasted the sweet perfume of the mountain grass I rolled down"],[29.11,"I was younger then, take me back to when"],[34.82,"I found my heart and broke it here"],[39.33,"Made friends and lost them through the years"],[43.32,"And I've not seen the roaring fields in so long"],[47.96,"I know I've grown"],[50.43,"But I can't wait to go home"],[53.35,"I'm on my way"],[56.82,"Driving at ninety down those"],[61.01,"Country lanes"],[63.84,"Singing to Tiny Dancer"],[67.38,"And I miss the way you make me feel"],[73.27,"And it's real, we watched the sunset"],[78.03,"Over the castle on the hill"],[85.90,"Fifteen years old and smoking hand-rolled cigarettes"],[92.96,"Running from the law through the backfields"],[95.52,"And getting drunk with my friends"],[99.87,"Had my first kiss on a Friday night"],[103.71,"I don't reckon that I did it right"],[106.87,"But I was younger then, take me back to when"],[112.71,"We found weekend jobs, when we got paid"],[117.73,"We'd buy cheap spirits and drink them straight"],[121.48,"Me and my friends have not thrown up in so long"],[126.18,"Oh, how we've grown"],[128.81,"But I can't wait to go home"],[131.51,"I'm on my way"],[135.03,"Driving at ninety down those"],[139.31,"Country lanes"],[142.07,"Singing to Tiny Dancer"],[145.63,"And I miss the way you make me feel"],[151.58,"And it's real, we watched the sunset"],[156.25,"Over the castle on the hill"],[163.36,"Over the castle on the hill"],[170.50,"Over the castle on the hill"],[181.92,"One friend left to sell clothes"],[185.58,"One works down by the coast"],[188.88,"One had two kids but lives alone"],[193.03,"One's brother overdosed"],[196.18,"One's already on his second wife"],[199.72,"One's just barely getting by, but"],[203.06,"These people raised me"],[205.08,"And I can't wait to go home"],[209.50,"And I'm on my way"],[213.28,"I still remember these old country lanes"],[219.96,"When we did not know the answers"],[223.82,"And I miss the way you make me feel"],[229.89,"It's real, we watched the sunset"],[234.48,"Over the castle on the hill"],[241.62,"Over the castle on the hill"],[248.65,"Over the castle on the hill"]
+];
 LYRICS["rmb-polish-remix-aitch"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
 LYRICS["rmb-german-remix-aitch"] = [[0,"You caught us, we're still working on getting lyrics for this one."]];
 LYRICS["my-g-aitch-ed-sheeran"] = [
@@ -1651,12 +1740,50 @@ LYRICS["footprints-in-the-sand-leona-lewis"] = [
 ];
 
 const assetUrl=(value)=>resolveAssetUrl(value, typeof window !== "undefined" ? window.location.href : "");
+const LYRICS_BACKDROPS=[
+  {id:"mount-back",label:"Frostpeak",image:assetUrl("/images/mount-back.png")},
+  {id:"deluxe-tunes-lyrics-backdrop",label:"Emberglow",image:assetUrl("/images/deluxe-tunes-lyrics-backdrop.png")},
+  {id:"deluxe-tunes-lyrics-backdrop-2",label:"Starfall",image:assetUrl("/images/deluxe-tunes-lyrics-backdrop-2.png")},
+  {id:"deluxe-tunes-lyrics-backdrop-3",label:"Goldencrest",image:assetUrl("/images/deluxe-tunes-lyrics-backdrop-3.png")},
+  {id:"deluxe-tunes-lyrics-backdrop-4",label:"Pink Horizon",image:assetUrl("/images/deluxe-tunes-lyrics-backdrop-4.jpg")},
+  {id:"deluxe-tunes-lyrics-backdrop-6",label:"Cloudtop Sunset",image:assetUrl("/images/deluxe-tunes-lyrics-backdrop-6.png")},
+  {id:"deluxe-tunes-lyrics-backdrop-7",label:"Ocean Glow",image:assetUrl("/images/deluxe-tunes-lyrics-backdrop-7.png")},
+];
+const LYRICS_TEXT_COLORS=[
+  {id:"white",label:"White",value:"#ffffff"},
+  {id:"red",label:"Red",value:"#ff4b55"},
+  {id:"blue",label:"Blue",value:"#53a8ff"},
+  {id:"green",label:"Green",value:"#4cdb83"},
+  {id:"black",label:"Black",value:"#000000"},
+  {id:"gold",label:"Yellow",value:"#ffd34e"},
+];
 const ALBUMS_WITH_ASSETS=ALBUMS.map(album=>({...album,artwork:assetUrl(album.artwork)}));
 const INITIAL=DEMOS.map(d=>({...d,file:assetUrl(d.file),artwork:assetUrl(d.artwork),demo:true,duration:d.length,url:assetUrl(d.file)}));
 const SINGLE_SONG_IDS = new Set(ALBUMS_WITH_ASSETS.filter(album=>album.type==="single").flatMap(album=>album.trackIds||[]));
-const STORAGE_KEYS={likes:"dt5_likes",stats:"dt4_stats",sharedPlays:"dt5_shared_plays",livePlays:"dt8_live_plays",highPopularityPlaySchedule:"dt8_high_popularity_play_schedule",recent:"dt6_recent",searches:"dt6_searches",follows:"dt6_follows",playlists:"dt6_playlists",libraryAlbums:"dt7_library_albums",downloads:"dt7_downloads",theme:"dt6_theme",sleep:"dt6_sleep",account:"dt8_account",session:"dt8_session",discord:"dt8_discord",spotify:"dt8_spotify",spotifyProfile:"dt8_spotify_profile",streak:"dt8_streak"};
+const STORAGE_KEYS={likes:"dt5_likes",stats:"dt4_stats",sharedPlays:"dt5_shared_plays",livePlays:"dt8_live_plays",highPopularityPlaySchedule:"dt8_high_popularity_play_schedule",recent:"dt6_recent",searches:"dt6_searches",follows:"dt6_follows",playlists:"dt6_playlists",libraryAlbums:"dt7_library_albums",downloads:"dt7_downloads",theme:"dt6_theme",sleep:"dt6_sleep",account:"dt8_account",session:"dt8_session",discord:"dt8_discord",spotify:"dt8_spotify",spotifyProfile:"dt8_spotify_profile",streak:"dt8_streak",playbackResume:"dt8_playback_resume",queue:"dt8_queue",lyricsBackdrop:"dt8_lyrics_backdrop",lyricsTextColor:"dt8_lyrics_text_color",store:"dt9_store"};
 const SPOTIFY_IMPORT_DEMO={profile:{display_name:"Deluxe Listener",email:"spotify@deluxe.tunes",country:"UK"},playlists:[{name:"Night Drive",tracks:["bad-oneda","let-me-in-oneda","eternity-alex-warren"]},{name:"Late Night Cuts",tracks:["sienna-the-visitor","ufo-d-block-europe-aitch","rain-aitch-aj-tracey"]},{name:"Favourites",tracks:["major-pay-oneda-renee-stormz","clash-dave-stormzy","sienna-you-stole-the-show"]}],likedSongs:["ufo-d-block-europe-aitch","sienna-the-visitor","eternity-alex-warren","major-pay-oneda-renee-stormz"],history:["rain-aitch-aj-tracey","clash-dave-stormzy","sienna-you-stole-the-show","set-it-off-oneda","ufo-d-block-europe-aitch"]};
 const safeJSON=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||"null")??fallback}catch{return fallback}};
+const loadStoreData=()=>{
+ const saved=safeJSON(STORAGE_KEYS.store,null);
+ const savedBackdrop=safeJSON(STORAGE_KEYS.lyricsBackdrop,"mount-back");
+ const savedColor=safeJSON(STORAGE_KEYS.lyricsTextColor,"white");
+ const validBackdropIds=LYRICS_BACKDROPS.map(backdrop=>backdrop.id);
+ const validColorIds=LYRICS_TEXT_COLORS.map(color=>color.id);
+ const ownedBackdrops=Array.isArray(saved?.ownedBackdrops)?saved.ownedBackdrops.filter(id=>validBackdropIds.includes(id)):validBackdropIds.includes(savedBackdrop)?[savedBackdrop]:[];
+ const ownedColors=Array.isArray(saved?.ownedColors)?saved.ownedColors.filter(id=>validColorIds.includes(id)):validColorIds.includes(savedColor)?[savedColor]:[];
+ const balance=Number(saved?.balance);
+ return {
+   balance:Number.isFinite(balance)?Math.max(0,Math.floor(balance)):0,
+   ownedBackdrops:[...new Set(["mount-back",...ownedBackdrops])],
+   ownedColors:[...new Set(["white",...ownedColors])],
+   rewards:{
+     daily:Array.isArray(saved?.rewards?.daily)?saved.rewards.daily:[],
+     milestones:Array.isArray(saved?.rewards?.milestones)?saved.rewards.milestones:[],
+   },
+   redeemedCodes:Array.isArray(saved?.redeemedCodes)?saved.redeemedCodes.filter(code=>typeof code==="string"&&/^\d{5}$/.test(code)):[],
+   appliedAdminGrantIds:Array.isArray(saved?.appliedAdminGrantIds)?saved.appliedAdminGrantIds.filter(id=>typeof id==="string"):[],
+ };
+};
 const isHighPopularityTrack=(song)=>Number(song?.plays||0)>=100000000;
 const randomWhole=(min,max)=>Math.floor(Math.random()*(max-min+1))+min;
 const fmt=n=>{n=Math.max(0,Math.floor(n||0));return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`};
@@ -1694,7 +1821,7 @@ function DevelopmentPreview(){
       <div className="developmentProgress" aria-label="25 percent complete"><div><span>BUILD PROGRESS</span><b>25%</b></div><div className="developmentProgressTrack"><i/></div></div>
       <div className="developmentMeta"><div><span>AVAILABLE SONGS</span><b>{INITIAL.length}</b></div><div><span>RELEASE STATUS</span><b>IN EARLY DEVELOPMENT</b></div><div><span>VERSION</span><b>v{APP_VERSION}</b></div></div>
       <p className="developmentNote"><Sparkles size={15}/> Some songs and features aren't available yet.</p>
-      <p className="developmentDisclaimer" style={{borderLeft:"2px solid var(--lime)",padding:"12px 14px",background:"rgba(183,255,60,.07)",color:"#b9c8c7",fontWeight:600,lineHeight:1.7}}>Some features may not work or may look different depending on the device you use. Google sign-in has not been configured properly yet. We are more focused on getting this app out to you guys.<br/><strong style={{color:"var(--lime)",display:"inline-block",marginTop:"5px"}}>— Deluxe Team</strong></p>
+      <p className="developmentDisclaimer" style={{borderLeft:"2px solid var(--lime)",padding:"12px 14px",background:"rgba(183,255,60,.07)",color:"#b9c8c7",fontWeight:600,lineHeight:1.7}}>Some features may not work or may look different depending on the device you use. We are focused on getting this app out to you guys.<br/><strong style={{color:"var(--lime)",display:"inline-block",marginTop:"5px"}}>— Deluxe Team</strong></p>
       <p style={{maxWidth:"570px",color:"#7f9092",fontSize:"10px",lineHeight:1.65,margin:"0 0 24px"}}><strong style={{color:"#d6e4e1"}}>An account is required to enter.</strong> The only way to make an account is through the app's <strong style={{color:"#d6e4e1"}}>Create account</strong> feature. Don't worry, you can edit your account at any time. If you can't update it now, you can do so later once your device has fully updated to the latest software.</p>
       <div style={{display:"inline-flex",alignItems:"center",gap:"9px",marginBottom:"14px",color:"#718286",font:"800 8px 'Space Grotesk'",letterSpacing:"1.5px"}}><span style={{display:"inline-flex",alignItems:"flex-end",gap:"2px",height:"14px"}}>{[7,11,5,13,9].map((height,index)=><i key={index} style={{display:"block",width:"2px",height:`${height}px`,borderRadius:"2px",background:index%2?"var(--cyan)":"var(--lime)",opacity:.85}}/>)}</span><span>SIGNAL CHECK / ONLINE</span></div>
       <div style={{display:"flex",flexWrap:"wrap",gap:"10px",alignItems:"center"}}>
@@ -1756,94 +1883,244 @@ function ComingSoon(){
 
 
 
-async function hashPassword(value){
-  if(!window.crypto?.subtle) return value;
-  const data=new TextEncoder().encode(value);
-  const digest=await crypto.subtle.digest("SHA-256",data);
-  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-function makeInitialAccount(){return {id:"local-"+Date.now(),email:"",nickname:"",avatar:"",provider:"email",createdAt:new Date().toISOString()}}
-function AccountGate({onAuthenticated}){
-  const googleInitialized=useRef(false);
-  const [mode,setMode]=useState("signin");
-  const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [nickname,setNickname]=useState(""); const [avatar,setAvatar]=useState(""); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
-  const googleClientId=import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  function chooseAvatar(e){const file=e.target.files?.[0];if(!file)return; if(file.size>2_000_000){setError("Choose an image under 2 MB.");return;} const reader=new FileReader(); reader.onload=()=>setAvatar(String(reader.result||"")); reader.readAsDataURL(file);}
-  async function submit(e){e.preventDefault();setError("");setBusy(true);try{
-    const clean=email.trim().toLowerCase(); if(!clean||!password){setError("Enter your email and password.");return;}
-    const existing=safeJSON(STORAGE_KEYS.account,null);
-    if(mode==="signup"){
-      if(existing?.email===clean){setError("An account already exists on this device. Sign in instead.");return;}
-      if(password.length<6){setError("Use a password with at least 6 characters.");return;}
-      if(!nickname.trim()){setError("Choose a nickname first.");return;}
-      const account={...makeInitialAccount(),email:clean,nickname:nickname.trim(),avatar,provider:"email",passwordHash:await hashPassword(password)};
-      localStorage.setItem(STORAGE_KEYS.account,JSON.stringify(account));localStorage.setItem(STORAGE_KEYS.session,JSON.stringify(account));onAuthenticated(account);
-    }else{
-      if(!existing||existing.email!==clean){setError("No account with that email is saved on this device.");return;}
-      if(existing.passwordHash!==(await hashPassword(password))){setError("That password is incorrect.");return;}
-      localStorage.setItem(STORAGE_KEYS.session,JSON.stringify(existing));onAuthenticated(existing);
+function AccountGate({onAuthenticated,onServerAuthenticated,authError,resetToken="",serverOnly=false}){
+  const [mode,setMode]=useState(resetToken?"reset":"signin");
+  const [identifier,setIdentifier]=useState(""); const [username,setUsername]=useState(""); const [password,setPassword]=useState(""); const [confirmPassword,setConfirmPassword]=useState(""); const [nickname,setNickname]=useState(""); const [error,setError]=useState(authError||""); const [notice,setNotice]=useState(""); const [busy,setBusy]=useState(false);
+  async function submit(e){e.preventDefault();setError("");setNotice("");setBusy(true);try{
+    const clean=identifier.trim().toLowerCase();
+    if(mode==="reset-request"){
+      if(!clean){setError("Enter the email address for your account.");return;}
+      const result=await friendsApi("/api/auth/password-reset/request",{method:"POST",body:{email:clean}});
+      setNotice(result.message||"If an account exists for that email, a password reset link will be sent.");
+      setMode("reset-sent");
+      return;
     }
-  }finally{setBusy(false)}}
-  function googleSignIn(){
-    setError("");
-    if(!googleClientId){setError("Google sign-in needs VITE_GOOGLE_CLIENT_ID to be configured for this app.");return;}
-    const start=()=>{
-      if(!window.google?.accounts?.id){setError("Google sign-in is still loading. Try again.");return;}
-      if(!googleInitialized.current){
-        window.google.accounts.id.initialize({client_id:googleClientId,callback:(response)=>{try{const payload=JSON.parse(atob(response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));const account={...makeInitialAccount(),email:payload.email||"",nickname:payload.name||payload.given_name||"Deluxe Listener",avatar:payload.picture||"",provider:"google"};localStorage.setItem(STORAGE_KEYS.account,JSON.stringify(account));localStorage.setItem(STORAGE_KEYS.session,JSON.stringify(account));onAuthenticated(account)}catch{setError("Google sign-in could not be completed.")}}});
-        googleInitialized.current=true;
-      }
-      window.google.accounts.id.prompt();
+    if(mode==="reset"){
+      if(password!==confirmPassword){setError("The passwords do not match.");return;}
+      await friendsApi("/api/auth/password-reset/confirm",{method:"POST",body:{token:resetToken,password}});
+      const currentUrl=new URL(window.location.href);
+      currentUrl.searchParams.delete("resetToken");
+      currentUrl.hash="";
+      window.history.replaceState(window.history.state,"",currentUrl);
+      setPassword("");
+      setConfirmPassword("");
+      setNotice("Your password has been reset. Sign in with your new password.");
+      setMode("signin");
+      return;
+    }
+    if(!clean||!password){setError("Enter your email or username and password.");return;}
+    if(mode==="signup"){
+      if(!nickname.trim()){setError("Choose a display name first.");return;}
+      const result=await friendsApi("/api/auth/register",{method:"POST",body:{email:clean,username,displayName:nickname.trim(),password}});
+      onServerAuthenticated(result.user);
+      return;
+    }
+    const result=await friendsApi("/api/auth/login",{method:"POST",body:{identifier:clean,password}});
+    onServerAuthenticated(result.user);
+  }catch(authError){setError(authError.message||"Account request failed.");}finally{setBusy(false)}}
+  function continueWithoutSigningIn(){
+    const localAccount={
+      id:crypto.randomUUID(),
+      email:"",
+      nickname:"Listener",
+      avatar:"",
+      provider:"device-only",
     };
-    if(window.google?.accounts?.id) start(); else {
-      const existing=document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-      if(existing){existing.addEventListener("load",start,{once:true});}
-      else {const script=document.createElement("script");script.src="https://accounts.google.com/gsi/client";script.async=true;script.onload=start;script.onerror=()=>setError("Google sign-in needs an internet connection the first time it is configured.");document.head.appendChild(script);}
+    localStorage.setItem(STORAGE_KEYS.account,JSON.stringify(localAccount));
+    localStorage.setItem(STORAGE_KEYS.session,JSON.stringify(localAccount));
+    onAuthenticated(localAccount);
+  }
+  return <div className="authGate"><div className="authGlow"/><div className="authCard"><div className="authBrand"><Logo/><span>DELUXE TUNES</span></div><div className="authCopy"><span>YOUR MUSIC. YOUR ACCOUNT.</span><h1>{mode==="signup"?"Create your account.":mode==="reset-request"?"Reset your password.":mode==="reset"?"Choose a new password.":mode==="reset-sent"?"Check your email.":"Welcome back."}</h1><p>{mode==="reset-request"?"Enter the email address for your account. If it exists, we'll send a secure reset link.":mode==="reset"?"Choose a new password for your existing account.":mode==="reset-sent"?"If an account exists for that email, a password reset link will be sent.":"Use your Deluxe Tunes email or username and password. Existing device-only accounts remain available on this device."}</p></div>
+    {mode!=="reset-sent"?<form onSubmit={submit} className="authForm">
+      {mode==="signup"&&<><label><span>Display name</span><div className="authInput"><UserRound size={16}/><input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="What should we call you?" autoComplete="name" maxLength={48} required/></div></label><label><span>Username</span><div className="authInput"><UserRound size={16}/><input value={username} onChange={e=>setUsername(e.target.value.toLowerCase())} placeholder="3–20 letters, numbers or _" autoComplete="username" pattern="[A-Za-z0-9_]{3,20}" minLength={3} maxLength={20} required/></div><small className="accountVerificationNotice">Your unique #1234 suffix is generated automatically.</small></label></>}
+      {(mode==="signup"||mode==="reset-request")&&<label><span>Account email</span><div className="authInput"><Mail size={16}/><input type="email" value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com" autoComplete="email" maxLength={254} required/></div></label>}
+      {mode==="signin"&&<label><span>Email or username</span><div className="authInput"><Mail size={16}/><input type="text" value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com or username#1234" autoComplete="username" maxLength={254} required/></div></label>}
+      {(mode==="signin"||mode==="signup"||mode==="reset")&&<label><span>{mode==="reset"?"New password":"Password"}</span><div className="authInput"><LockKeyhole size={16}/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="signup"||mode==="reset"?"At least 12 characters":"Your password"} autoComplete={mode==="signin"?"current-password":"new-password"} maxLength={72} required/></div></label>}
+      {mode==="reset"&&<label><span>Confirm new password</span><div className="authInput"><LockKeyhole size={16}/><input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Enter the new password again" autoComplete="new-password" maxLength={72} required/></div></label>}
+      {mode==="signup"&&<p className="accountVerificationNotice">Email verification is not configured. Your email will remain unverified.</p>}
+      {error&&<div className="authError" role="alert">{error}</div>}{notice&&<div className="accountVerificationNotice" role="status">{notice}</div>}
+      <button className="primary authSubmit" disabled={busy}>{busy?"Please wait…":mode==="signup"?"Create account":mode==="reset-request"?"Send reset link":mode==="reset"?"Update password":"Sign in"}</button>
+    </form>:notice&&<div className="accountVerificationNotice" role="status">{notice}</div>}
+    {mode==="signin"&&<button className="authSwitch" type="button" onClick={()=>{setMode("reset-request");setError("");setNotice("")}}>Forgot password?</button>}
+    {!serverOnly&&(mode==="signup"||mode==="signin")&&<button className="authSwitch" type="button" onClick={()=>{setMode(mode==="signup"?"signin":"signup");setError("");setNotice("")}}>{mode==="signup"?"Already have an account? Sign in":"New to Deluxe Tunes? Create an account"}</button>}
+    {mode!=="signin"&&<button className="authSwitch" type="button" onClick={()=>{setMode("signin");setError("");setNotice("");setPassword("");setConfirmPassword("")}}>Back to sign in</button>}
+    {!serverOnly&&(mode==="signin"||mode==="signup")&&<><button className="authSwitch" type="button" onClick={continueWithoutSigningIn}>Continue without signing in</button><div className="authFoot"><ShieldCheck size={14}/> Friends will create a private guest profile automatically; it is saved only on this device.</div></>}
+  </div></div>
+}
+
+function AccountRecordsPage(){
+  const [lookup,setLookup]=useState("");
+  const [record,setRecord]=useState(null);
+  const [access,setAccess]=useState("checking");
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    friendsApi("/api/admin/account-records/access").then(()=>{
+      if(active)setAccess("allowed");
+    }).catch(accessError=>{
+      if(!active)return;
+      setAccess(accessError.status===403?"denied":"unavailable");
+      if(accessError.status!==403)setError(accessError.message||"Could not verify account-record access.");
+    });
+    return()=>{active=false};
+  },[]);
+  async function search(event){
+    event.preventDefault();
+    setError("");
+    setRecord(null);
+    setBusy(true);
+    try{
+      const result=await friendsApi(`/api/admin/account-records?lookup=${encodeURIComponent(lookup.trim())}`);
+      setRecord(result.record);
+    }catch(searchError){
+      setError(searchError.message||"Account lookup failed.");
+    }finally{
+      setBusy(false);
     }
   }
-  return <div className="authGate"><div className="authGlow"/><div className="authCard"><div className="authBrand"><Logo/><span>DELUXE TUNES</span></div><div className="authCopy"><span>YOUR MUSIC. YOUR ACCOUNT.</span><h1>{mode==="signup"?"Create your account.":"Welcome back."}</h1><p>Sign in to keep your library, likes, playlists, stats and profile together.</p></div><div className="authMethods"><button className="googleBtn" onClick={googleSignIn}><span className="googleMark">G</span> Continue with Google</button><div className="authDivider"><span>OR</span></div></div><form onSubmit={submit} className="authForm">
-    {mode==="signup"&&<><label><span>Nickname</span><div className="authInput"><UserRound size={16}/><input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="What should we call you?" autoComplete="nickname"/></div></label><label><span>Profile picture</span><div className="avatarUpload"><div className="authAvatarPreview">{avatar?<img src={avatar} alt="Profile preview"/>:<UserRound size={23}/>}</div><label className="uploadBtn"><Upload size={15}/> Choose photo<input type="file" accept="image/*" onChange={chooseAvatar}/></label><small>Optional · stored on this device</small></div></label></>}
-    <label><span>Email</span><div className="authInput"><Mail size={16}/><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email"/></div></label>
-    <label><span>Password</span><div className="authInput"><LockKeyhole size={16}/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 6 characters" autoComplete={mode==="signup"?"new-password":"current-password"}/></div></label>
-    {error&&<div className="authError">{error}</div>}<button className="primary authSubmit" disabled={busy}>{busy?"Signing in…":mode==="signup"?"Create account":"Sign in"}</button>
-  </form><button className="authSwitch" onClick={()=>{setMode(mode==="signup"?"signin":"signup");setError("")}}>{mode==="signup"?"Already have an account? Sign in":"New to Deluxe Tunes? Create an account"}</button><div className="authFoot"><ShieldCheck size={14}/> Your local account data stays on this device in this offline build.</div></div></div>
+  function returnToApp(){
+    const url=new URL(window.location.href);
+    url.searchParams.delete("admin");
+    window.location.assign(url);
+  }
+  return <div className="authGate"><div className="authCard"><div className="authBrand"><Logo/><span>DELUXE TUNES</span></div><div className="authCopy"><span>PRIVATE ADMIN TOOL</span><h1>Account records</h1><p>Look up one account by its exact email address or account ID. Passwords, hashes, and session data are never shown.</p></div>
+    {access==="checking"&&<div className="accountVerificationNotice" role="status">Verifying administrator access…</div>}
+    {access==="denied"&&<div className="authError" role="alert">This signed-in account is not authorized to view account records.</div>}
+    {access==="unavailable"&&error&&<div className="authError" role="alert">{error}</div>}
+    {access==="allowed"&&<form onSubmit={search} className="authForm">
+      <label><span>Exact account email or account ID</span><div className="authInput"><Search size={16}/><input value={lookup} onChange={event=>setLookup(event.target.value)} placeholder="name@example.com or account UUID" maxLength={254} required/></div></label>
+      {error&&<div className="authError" role="alert">{error}</div>}
+      <button className="primary authSubmit" disabled={busy}>{busy?"Searching…":"Look up account"}</button>
+      {record&&<dl className="accountRecordResult">
+        <div><dt>Account ID</dt><dd>{record.id}</dd></div>
+        <div><dt>Email</dt><dd>{record.email}</dd></div>
+        <div><dt>Username</dt><dd>{record.username||"Not set"}</dd></div>
+        <div><dt>Display name</dt><dd>{record.displayName}</dd></div>
+        <div><dt>Created</dt><dd>{record.createdAt?new Date(record.createdAt).toLocaleString():"Unknown"}</dd></div>
+      </dl>}
+    </form>}
+    <button className="authSwitch" type="button" onClick={returnToApp}>Back to Deluxe Tunes</button>
+  </div></div>
+}
+
+function RedeemPage({onRedeem,onApplyAdminGrant,onSetAdminStreak}){
+  const [code,setCode]=useState("");
+  const [notice,setNotice]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [adminCode,setAdminCode]=useState("");
+  const [adminOpen,setAdminOpen]=useState(false);
+  async function submit(event){
+    event.preventDefault();
+    setNotice("");
+    if(code.length===8){
+      setBusy(true);
+      try{
+        await friendsApi("/api/admin/panel/access",{method:"POST",body:{code}});
+        setAdminCode(code);
+        setAdminOpen(true);
+        setCode("");
+      }catch(error){
+        setNotice(error.message||"Could not open the admin panel.");
+      }finally{
+        setBusy(false);
+      }
+      return;
+    }
+    const result=onRedeem(code);
+    if(result.status==="redeemed"){
+      setNotice(`Code accepted. ${result.tokens.toLocaleString()} Tune Tokens were added.`);
+      setCode("");
+    }else if(result.status==="already-redeemed"){
+      setNotice("This code has already been redeemed on this device.");
+    }else setNotice("That code is invalid.");
+  }
+  return <div className="authGate"><div className="authCard"><div className="authBrand"><Logo/><span>DELUXE TUNES</span></div>  <div className="authCopy"><span>REWARDS</span><h1>Redeem a code</h1><p>Redeem a five-digit reward code or enter an administrator code to open the private panel.</p></div>
+    <form onSubmit={submit} className="authForm">
+      <label><span>Code</span><div className="authInput"><Gift size={16}/><input inputMode="numeric" autoComplete="one-time-code" pattern="([0-9]{5}|[0-9]{8})" maxLength={8} value={code} onChange={event=>{setCode(event.target.value.replace(/\D/g,"").slice(0,8));setNotice("")}} placeholder="5- or 8-digit code" aria-label="Redemption or administrator code" required/></div></label>
+      {notice&&<div className="accountVerificationNotice" role="status">{notice}</div>}
+      <button className="primary authSubmit" disabled={busy||![5,8].includes(code.length)}>{busy?"Verifying…":code.length===8?"Open admin panel":"Redeem code"}</button>
+    </form>
+  </div>{adminOpen&&<AdminPanel code={adminCode} onApplyGrant={onApplyAdminGrant} onSetStreak={onSetAdminStreak} onClose={()=>{setAdminOpen(false);setAdminCode("")}}/>}</div>
+}
+
+function AdminPanel({code,onApplyGrant,onSetStreak,onClose}){
+  const [days,setDays]=useState("7");
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState("");
+  const [error,setError]=useState("");
+  async function applyAction(action){
+    setBusy(true);setError("");setMessage("");
+    try{
+      if(action==="tokens"){
+        const {grant}=await friendsApi("/api/admin/me/tokens",{method:"POST",body:{code,idempotencyKey:crypto.randomUUID()}});
+        onApplyGrant(grant);
+        setMessage("Added 5,000 Tune Tokens to your account.");
+      }else{
+        const result=await friendsApi("/api/admin/me/streak",{method:"POST",body:{code,days:Number(days)}});
+        onSetStreak(result.currentStreak);
+        setMessage(`Your current streak is now ${result.currentStreak.toLocaleString()} days.`);
+      }
+    }catch(actionError){setError(actionError.message||"The admin action failed.");}
+    finally{setBusy(false);}
+  }
+  return <div className="adminPanelOverlay" onClick={onClose}>
+    <section className="adminPanelModal" role="dialog" aria-modal="true" aria-labelledby="admin-panel-title" onClick={event=>event.stopPropagation()}>
+      <header className="adminPanelHeader"><div><span>PRIVATE ADMIN TOOL</span><h2 id="admin-panel-title">Admin panel</h2></div><button className="iconBtn" type="button" onClick={onClose} aria-label="Close admin panel"><X size={18}/></button></header>
+      <div className="adminPanelBody">
+        <p className="adminPanelSelfNotice">These repeatable admin actions apply only to the signed-in account that opened this panel.</p>
+        <div className="adminPanelActions">
+          <section><div><span>YOUR REWARD</span><h3>Grant Tune Tokens</h3><p>Add 5,000 tokens to your own account each time you press the button. There is no per-press limit.</p></div><button className="primary" type="button" disabled={busy} onClick={()=>applyAction("tokens")}>Add 5K Tune Tokens</button></section>
+          <section><div><span>YOUR STREAK</span><h3>Add custom streak days</h3><p>Add the selected number of days to your own current streak with each press.</p></div><label><span>Days to add (1–100,000)</span><input type="number" min="1" max="100000" step="1" value={days} onChange={event=>setDays(event.target.value)}/></label><button className="primary" type="button" disabled={busy||!Number.isInteger(Number(days))||Number(days)<1||Number(days)>100000} onClick={()=>applyAction("streak")}>Add streak days</button></section>
+        </div>
+        {message&&<div className="accountVerificationNotice" role="status">{message}</div>}
+        {error&&<div className="authError" role="alert">{error}</div>}
+      </div>
+    </section>
+  </div>;
 }
 
 
-function resolveDiscordArtworkUrl(artwork) {
+function resolveDiscordArtworkKey(artwork) {
   if (typeof artwork !== "string" || !artwork.trim()) return "deluxetunes";
+
   const value = artwork.trim();
-  if (/^https:\/\//i.test(value)) {
+  let fileName = "";
+
+  if (/^https?:\/\//i.test(value)) {
     try {
       const url = new URL(value);
-      return url.protocol === "https:" ? url.toString() : "deluxetunes";
+      fileName = decodeURIComponent(url.pathname.split("/").pop() || "");
     } catch {
       return "deluxetunes";
     }
-  }
-
-  let artworkPath = value;
-  if (/^file:/i.test(artworkPath)) {
-    try {
-      const pathname = new URL(artworkPath).pathname.replace(/\\/g, "/");
-      const imagesIndex = pathname.lastIndexOf("/images/");
-      if (imagesIndex < 0) return "deluxetunes";
-      artworkPath = pathname.slice(imagesIndex);
-    } catch {
-      return "deluxetunes";
+  } else {
+    let artworkPath = value;
+    if (/^file:/i.test(artworkPath)) {
+      try {
+        const pathname = new URL(artworkPath).pathname.replace(/\\/g, "/");
+        const imagesIndex = pathname.lastIndexOf("/images/");
+        if (imagesIndex < 0) return "deluxetunes";
+        artworkPath = pathname.slice(imagesIndex);
+      } catch {
+        return "deluxetunes";
+      }
     }
+
+    const relativePath = artworkPath.replace(/\\/g, "/");
+    fileName = decodeURIComponent(relativePath.split("/").pop() || "");
   }
 
-  const relativePath = artworkPath.replace(/\\/g, "/").replace(/^\/+/, "");
-  if (!relativePath.startsWith("images/")) return "deluxetunes";
+  if (!fileName) return "deluxetunes";
 
-  const encodedPath = relativePath.split("/").map(segment => {
-    let decodedSegment = segment;
-    try { decodedSegment = decodeURIComponent(segment); } catch {}
-    return encodeURIComponent(decodedSegment).replace(/[!'()*]/g, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
-  }).join("/");
-  if (encodedPath.split("/").some(segment => segment === "." || segment === "..")) return "deluxetunes";
-  return `${API_BASE}/${encodedPath}?v=2`;
+  const baseName = fileName.replace(/\.[^/.]+$/, "").trim();
+  if (!baseName) return "deluxetunes";
+
+  return baseName
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "deluxetunes";
 }
 
 function openAuthWindow(url, title = 'deluxeTunesAuth') {
@@ -1876,8 +2153,26 @@ function openAuthWindow(url, title = 'deluxeTunesAuth') {
 }
 
 function App(){
+  const passwordResetToken=new URLSearchParams(window.location.hash.slice(1)).get("resetToken")||"";
+  const accountRecordsPage=new URLSearchParams(window.location.search).get("admin")==="account-records";
   const audio=useRef(null);
   const [account,setAccount]=useState(()=>safeJSON(STORAGE_KEYS.session,null));
+  const [serverUser,setServerUser]=useState(null);
+  const [serverAuthReady,setServerAuthReady]=useState(false);
+  const [serverAuthError,setServerAuthError]=useState("");
+  const handleServerAuthenticated=useCallback(user=>{
+    setServerUser(user);
+    setServerAuthError("");
+    setAccount(current=>current||{
+      id:user.id,
+      email:user.email||"",
+      nickname:user.displayName,
+      avatar:user.avatar||"",
+      provider:"password-server",
+      serverAuthenticated:true,
+    });
+  },[]);
+  const handleServerUserUpdated=useCallback(user=>setServerUser(user),[]);
   const [discordConnected,setDiscordConnected]=useState(()=>safeJSON(STORAGE_KEYS.discord,false));
   const [discordAuth,setDiscordAuth]=useState(()=>safeJSON("dt8_discord_auth",null));
   const [spotifyConnected,setSpotifyConnected]=useState(()=>safeJSON(STORAGE_KEYS.spotify,false));
@@ -1886,6 +2181,9 @@ function App(){
   // Demo tracks are always restored from /public. Object URLs from uploaded files are
   // intentionally not persisted because blob URLs die when the browser session ends.
   const [songs,setSongs]=useState(INITIAL);
+  const [resumeSong,setResumeSong]=useState(null);
+  const [resumePosition,setResumePosition]=useState(0);
+  const [resumeSource,setResumeSource]=useState("queue");
   const [likes,setLikes]=useState(()=>safeJSON(STORAGE_KEYS.likes,[]));
   const [stats,setStats]=useState(()=>safeJSON(STORAGE_KEYS.stats,{}));
   const [sharedPlays,setSharedPlays]=useState(()=>safeJSON(STORAGE_KEYS.sharedPlays,{}));
@@ -1898,6 +2196,16 @@ function App(){
   const [playlists,setPlaylists]=useState(()=>safeJSON(STORAGE_KEYS.playlists,[]));
   const [libraryAlbums,setLibraryAlbums]=useState(()=>safeJSON(STORAGE_KEYS.libraryAlbums,[]));
   const [downloads,setDownloads]=useState(()=>safeJSON(STORAGE_KEYS.downloads,[]));
+  const [lyricsBackdrop,setLyricsBackdrop]=useState(()=>{
+    const saved=safeJSON(STORAGE_KEYS.lyricsBackdrop,"mount-back");
+    return LYRICS_BACKDROPS.some(backdrop=>backdrop.id===saved)?saved:"mount-back";
+  });
+  const [lyricsTextColor,setLyricsTextColor]=useState(()=>{
+    const saved=safeJSON(STORAGE_KEYS.lyricsTextColor,"white");
+    return LYRICS_TEXT_COLORS.some(color=>color.id===saved)?saved:"white";
+  });
+  const [storeData,setStoreData]=useState(loadStoreData);
+  const storeDataRef=useRef(storeData);
   const [streak,setStreak]=useState(()=>normalizeStreakState(safeJSON(STORAGE_KEYS.streak,null)));
   const [selectedPlaylist,setSelectedPlaylist]=useState(null);
   const playlistsRef=useRef(playlists);
@@ -1905,7 +2213,17 @@ function App(){
   useEffect(()=>{setSelectedPlaylist(prev=>prev?playlists.find(p=>p.id===prev.id)||null:null)},[playlists]);
   const [playlistPickerSong,setPlaylistPickerSong]=useState(null);
   const [theme,setTheme]=useState(()=>safeJSON(STORAGE_KEYS.theme,"auto"));
-  const [queue,setQueue]=useState([]);
+  const [queue,setQueue]=useState(()=>{
+    const saved=Array.isArray(safeJSON(STORAGE_KEYS.queue,[]))?safeJSON(STORAGE_KEYS.queue,[]):[];
+    return saved.filter(song=>song?.id).slice(0,100);
+  });
+  const queueRef=useRef([]);
+  const playbackSessionRef=useRef(null);
+  const pendingResumeRef=useRef(null);
+  const playbackResumeRef=useRef(null);
+  const playbackResumeRestoreRef=useRef(false);
+  const lastResumePersistAtRef=useRef(0);
+  const playbackStartingRef=useRef(false);
   const [queueOpen,setQueueOpen]=useState(false);
   const [focusMode,setFocusMode]=useState(false);
   const [sleepTimer,setSleepTimer]=useState(null);
@@ -1914,17 +2232,72 @@ function App(){
   const [current,setCurrent]=useState(null),[playing,setPlaying]=useState(false),[position,setPosition]=useState(0),[duration,setDuration]=useState(0);
   const [volume,setVolume]=useState(.78),[query,setQuery]=useState(""),[page,setPage]=useState("home");
   const [toast,setToast]=useState(""),[shuffle,setShuffle]=useState(false),[repeat,setRepeat]=useState(false),[showLyrics,setShowLyrics]=useState(false),[selectedArtist,setSelectedArtist]=useState(null),[selectedAlbum,setSelectedAlbum]=useState(null),[playbackReturnAlbum,setPlaybackReturnAlbum]=useState(null),[libraryTab,setLibraryTab]=useState("playlists"),[previousPage,setPreviousPage]=useState("home");
+  useEffect(()=>{
+    let active=true;
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),10_000);
+    friendsApi("/api/auth/me",{signal:controller.signal}).then(result=>{
+      if(!active)return;
+      setServerUser(result.user);
+      setServerAuthError("");
+      const serverStreak=Number(result.user.currentStreak);
+      if(Number.isSafeInteger(serverStreak)&&serverStreak>0){
+        setStreak(current=>serverStreak!==current.current?setStreakDays(current,serverStreak):current);
+      }
+      setAccount(current=>current||{
+        id:result.user.id,
+        email:result.user.email||"",
+        nickname:result.user.displayName,
+        avatar:result.user.avatar||"",
+        provider:"password-server",
+        serverAuthenticated:true,
+      });
+    }).catch(authError=>{
+      if(!active)return;
+      if(authError.name!=="AbortError"&&!authError.message.includes("Sign in with your Deluxe Tunes account"))setServerAuthError(authError.message);
+    }).finally(()=>{
+      clearTimeout(timeout);
+      if(active)setServerAuthReady(true);
+    });
+    return()=>{active=false;clearTimeout(timeout);controller.abort()};
+  },[]);
+  useEffect(()=>{
+    if(!serverUser?.id)return undefined;
+    let active=true;
+    friendsApi("/api/auth/admin-token-grants").then(({grants=[]})=>{
+      if(!active)return;
+      setStoreData(current=>{
+        const next=applyAdminTokenGrants(current,grants);
+        storeDataRef.current=next;
+        return next;
+      });
+    }).catch(error=>console.error("[Admin token grants]",error.message));
+    return()=>{active=false};
+  },[serverUser?.id]);
+  useEffect(()=>{
+    if(!serverUser?.id)return undefined;
+    const sendPresence=()=>{
+      friendsApi("/api/friends/presence",{
+        method:"POST",
+        body:{
+          songId:current?.id||null,
+          playing:Boolean(playing),
+          currentStreak:Number(streak.current)||0,
+        },
+      }).catch(error=>console.error("[Friends presence]",error.message));
+    };
+    sendPresence();
+    const interval=setInterval(sendPresence,30_000);
+    return()=>clearInterval(interval);
+  },[serverUser?.id,current?.id,playing,streak.current]);
   const appSessionStartedAt=useRef(Date.now());
   const deepLinkHandledRef=useRef(null);
+  const playbackTokenRef=useRef(0);
   const albumTrackIds=new Set(ALBUMS_WITH_ASSETS.filter(album=>album.type==="album").flatMap(album=>album.trackIds||[]));
   const pageRef=useRef(page);
   const showLyricsRef=useRef(showLyrics);
   useEffect(()=>{pageRef.current=page},[page]);
   useEffect(()=>{showLyricsRef.current=showLyrics},[showLyrics]);
-
-  // Toggle the store/pre-launch screen with VITE_COMING_SOON=true.
-  // Normal development builds keep the full Deluxe Tunes player visible.
-  const COMING_SOON = import.meta.env.VITE_COMING_SOON === "true";
 
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.likes,JSON.stringify(likes)),[likes]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.stats,JSON.stringify(stats)),[stats]);
@@ -1938,10 +2311,88 @@ function App(){
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.playlists,JSON.stringify(playlists)),[playlists]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.libraryAlbums,JSON.stringify(libraryAlbums)),[libraryAlbums]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.downloads,JSON.stringify(downloads)),[downloads]);
+  useEffect(()=>localStorage.setItem(STORAGE_KEYS.lyricsBackdrop,JSON.stringify(lyricsBackdrop)),[lyricsBackdrop]);
+  useEffect(()=>localStorage.setItem(STORAGE_KEYS.lyricsTextColor,JSON.stringify(lyricsTextColor)),[lyricsTextColor]);
+  useEffect(()=>{storeDataRef.current=storeData;localStorage.setItem(STORAGE_KEYS.store,JSON.stringify(storeData));},[storeData]);
+  useEffect(()=>{
+    const current=storeDataRef.current;
+    const next=reconcileStreakRewards(current,streak);
+    if(next!==current){
+      storeDataRef.current=next;
+      setStoreData(next);
+    }
+  },[streak,storeData]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.streak,JSON.stringify(streak)),[streak]);
   useEffect(()=>localStorage.setItem(STORAGE_KEYS.theme,JSON.stringify(theme)),[theme]);
+  useEffect(()=>{queueRef.current=queue;localStorage.setItem(STORAGE_KEYS.queue,JSON.stringify(queue));},[queue]);
+
+  const persistPlaybackResume=(song,positionValue,durationValue,source="queue",session=null)=>{
+    const normalized=normalizePlaybackResumeState({
+      songId:song?.id,
+      position:Number.isFinite(positionValue)?Math.max(0,positionValue):0,
+      duration:Number.isFinite(durationValue)&&durationValue>0?durationValue:0,
+      source,
+      sessionIndex:session?.index,
+      sessionSongIds:session?.tracks?.map(item=>item.id),
+      updatedAt:Date.now()
+    });
+    if(!normalized){
+      localStorage.removeItem(STORAGE_KEYS.playbackResume);
+      playbackResumeRef.current=null;
+      return;
+    }
+    playbackResumeRef.current=normalized;
+    localStorage.setItem(STORAGE_KEYS.playbackResume,JSON.stringify(normalized));
+  };
+
+  const clearPlaybackResume=()=>{
+    localStorage.removeItem(STORAGE_KEYS.playbackResume);
+    playbackResumeRef.current=null;
+    setResumeSong(null);
+    setResumePosition(0);
+    setResumeSource("queue");
+  };
+
+  const restorePlaybackResume=(song, resumeState)=>{
+    const a=audio.current;
+    if(!a||!song||!resumeState)return;
+    const safePosition=Math.min(Math.max(0,resumeState.position),Math.max(0,resumeState.duration));
+    pendingResumeRef.current=song.id;
+    setResumeSong(song);
+    setResumePosition(safePosition);
+    setResumeSource(resumeState.source);
+    a.src=getSongUrl(song);
+    a.currentTime=safePosition;
+    setCurrent(song);
+    setDuration(resumeState.duration||song.duration||0);
+    setPosition(safePosition);
+    setPlaying(false);
+    if(resumeState.source==="artist"||resumeState.source==="sequence"){
+      const sessionSongIds=resumeState.sessionSongIds||[];
+      const tracks=sessionSongIds.map(id=>songs.find(item=>item.id===id)).filter(Boolean);
+      const currentIndex=tracks.findIndex(item=>item.id===song.id);
+      if(tracks.length && currentIndex>=0){
+        playbackSessionRef.current={source:resumeState.source,tracks,index:currentIndex};
+      }else{
+        playbackSessionRef.current=null;
+      }
+    }else{
+      playbackSessionRef.current=null;
+    }
+  };
+
   useEffect(()=>{
-    if(!account||deepLinkHandledRef.current) return;
+    if(!account||deepLinkHandledRef.current||playbackResumeRestoreRef.current||!songs.length)return;
+    playbackResumeRestoreRef.current=true;
+    const saved=normalizePlaybackResumeState(safeJSON(STORAGE_KEYS.playbackResume,null));
+    if(!saved){localStorage.removeItem(STORAGE_KEYS.playbackResume);return;}
+    const song=songs.find(item=>item.id===saved.songId);
+    if(!song){localStorage.removeItem(STORAGE_KEYS.playbackResume);return;}
+    restorePlaybackResume(song,saved);
+  },[account,songs]);
+
+  useEffect(()=>{
+    if(!account||deepLinkHandledRef.current)return;
     const songId=new URLSearchParams(window.location.search).get("song");
     const song=songId?songs.find(item=>item.id===songId):null;
     if(!song) return;
@@ -1975,10 +2426,10 @@ function App(){
     const payload = current ? {
       details: current.title || "Deluxe Tunes",
       state: playing ? "Listening on Deluxe Tunes" : "Paused • Deluxe Tunes",
-      largeImageKey: resolveDiscordArtworkUrl(current.artwork),
-      largeImageText: "Deluxe Tunes",
+      largeImageKey: resolveDiscordArtworkKey(current.artwork),
+      largeImageText: current.title || "Deluxe Tunes",
       smallImageKey: "deluxe_tunes",
-      smallImageText: "Deluxe Tunes",
+      smallImageText: current.artist || "Deluxe Tunes",
       startedAt: playbackStartedAt,
       endedAt: playbackEndedAt,
     } : {
@@ -2013,16 +2464,13 @@ function App(){
     }).catch(()=>{});
   },[]);
   useEffect(()=>{
-    const localDevOrigins = import.meta.env.DEV ? [
+    const allowedOrigins = new Set([
+      window.location.origin,
+      'null',
       'http://localhost:8787',
       'http://127.0.0.1:8787',
       'http://localhost:5173',
       'http://127.0.0.1:5173',
-    ] : [];
-    const allowedOrigins = new Set([
-      window.location.origin,
-      'null',
-      ...localDevOrigins,
       'https://deluxe-tunes-api.onrender.com',
       'https://api.deluxetunes.app',
       new URL(API_BASE).origin,
@@ -2090,10 +2538,16 @@ function App(){
       if (orderedIds.length) return orderedIds.map(id => idMap.get(id)).filter(Boolean);
       return songList;
     };
-    const custom=ALBUMS_WITH_ASSETS.filter(a=>a.type!=="single").map(a=>({...a,songs:orderedAlbumSongs(a,songs)}));
+    const custom=filterVisibleAlbums(ALBUMS_WITH_ASSETS.filter(a=>a.type!=="single")).map(a=>({...a,songs:orderedAlbumSongs(a,songs)}));
     const customNames=new Set(custom.map(a=>a.title.toLowerCase()));
+    const ignoredGeneratedAlbumTitles = new Set([
+      "hate me",
+      "sprinter",
+      "we’re all alone in this together",
+      "we're all alone in this together"
+    ]);
     const generated=[...new Map(songs.map(s=>[s.album,s])).values()]
-      .filter(a=>a.album && !customNames.has(a.album.toLowerCase()))
+      .filter(a=>a.album && isVisibleAlbum(a.album) && !customNames.has(a.album.toLowerCase()) && !ignoredGeneratedAlbumTitles.has(String(a.album).trim().toLowerCase()))
       .map(a=>({
         id:`album-${a.album.toLowerCase().replace(/[^a-z0-9]+/g,"-")}`,
         title:a.album,
@@ -2116,24 +2570,58 @@ function App(){
   const likedSongs=useMemo(()=>songs.filter(s=>likes.includes(s.id)),[songs,likes]);
   const recentlyPlayedSongs=useMemo(()=>recent.map(id=>songs.find(s=>s.id===id)).filter(Boolean),[recent,songs]);
   const queueSongs=queue;
+  const artistSearchCatalog=useMemo(()=>buildArtistSearchCatalog(ARTISTS, songs),[songs]);
   const filteredArtists=useMemo(()=>{
     if(!searchTerm) return [];
-    return ARTISTS.filter(a=>String(a.name||"").toLowerCase().startsWith(searchTerm));
+    return artistSearchCatalog.filter(a=>String(a.name||"").toLowerCase().startsWith(searchTerm));
+  },[artistSearchCatalog,searchTerm]);
+  const filteredAlbums=useMemo(()=>{
+    if(!searchTerm) return [];
+    return albumRecords.filter(album=>{
+      const title=String(album?.title||"").toLowerCase();
+      const artist=String(album?.artist||"").toLowerCase();
+      return title.startsWith(searchTerm) || artist.startsWith(searchTerm);
+    });
+  },[albumRecords,searchTerm]);
+  const filteredSingles=useMemo(()=>{
+    if(!searchTerm) return [];
+    return ALBUMS_WITH_ASSETS.filter(album=>album?.type==="single" && (String(album?.title||"").toLowerCase().startsWith(searchTerm) || String(album?.artist||"").toLowerCase().startsWith(searchTerm)));
   },[searchTerm]);
 
   useEffect(()=>{
     const a=audio.current;if(!a)return;
-    const onTime=()=>setPosition(a.currentTime||0);
+    const onTime=()=>{
+      const nextPosition=a.currentTime||0;
+      setPosition(nextPosition);
+      if(!current||!playing||playbackStartingRef.current)return;
+      const now=Date.now();
+      if(now-lastResumePersistAtRef.current>=2000){
+        lastResumePersistAtRef.current=now;
+        persistPlaybackResume(current,nextPosition,a.duration||duration,playbackSessionRef.current?.source,playbackSessionRef.current);
+      }
+    };
     const onLoaded=()=>{
       if(isFinite(a.duration)){
         setDuration(a.duration);
         setSongs(list=>list.map(x=>x.id===current?.id?{...x,duration:a.duration}:x));
+        if(pendingResumeRef.current===current?.id && Number.isFinite(a.duration)){
+          const savedPosition=Math.min(resumePosition,a.duration);
+          a.currentTime=savedPosition;
+          setPosition(savedPosition);
+          pendingResumeRef.current=null;
+        }
       }
     };
-    const onPlay=()=>setPlaying(true);
-    const onPause=()=>setPlaying(false);
+    const onPlay=()=>{playbackStartingRef.current=false;setPlaying(true)};
+    const onPause=()=>{
+      if(playbackStartingRef.current)return;
+      if(current && playing){
+        persistPlaybackResume(current,a.currentTime||0,a.duration||duration,playbackSessionRef.current?.source,playbackSessionRef.current);
+      }
+      setPlaying(false);
+    };
     const onError=()=>{setPlaying(false);notify("This audio file could not be decoded by your browser.")};
-    const onEnd=()=>{setPlaying(false);if(repeat)playSong(current);else next(current,false)};
+    const onEnd=()=>handlePlaybackEnd(playbackTokenRef.current);
     a.addEventListener("timeupdate",onTime);
     a.addEventListener("loadedmetadata",onLoaded);
     a.addEventListener("play",onPlay);
@@ -2144,7 +2632,7 @@ function App(){
       ["timeupdate",onTime],["loadedmetadata",onLoaded],["play",onPlay],
       ["pause",onPause],["error",onError],["ended",onEnd]
     ].forEach(([e,h])=>a.removeEventListener(e,h));
-  },[current,repeat,shuffle,songs]);
+  },[current,repeat,shuffle,songs,playing,duration,resumePosition]);
 
   function notify(t){setToast(t);clearTimeout(window.__dtToast);window.__dtToast=setTimeout(()=>setToast(""),2100)}
 
@@ -2175,28 +2663,44 @@ function App(){
     setSharedPlays(prev=>({...prev,[song.id]:(prev[song.id]||0)+1}));
   }
 
-  function playOrderedQueue(tracks, returnAlbum=null, startSongId=null){
-    const ordered=[...new Map((tracks||[]).filter(Boolean).map(song=>[song.id,{...song,url:getSongUrl(song),file:song.file||getSongUrl(song)}])).values()].filter(hasSongAudio);
+  function playSequence(tracks, source, returnAlbum=null, startSongId=null){
+    const ordered=getArtistPlaybackSequence((tracks||[]).map(song=>({...song,url:getSongUrl(song),file:song.file||getSongUrl(song)})));
     if(!ordered.length){ notify("No playable tracks in this selection."); return; }
-    const start = ordered.find(song => song.id === startSongId) || ordered[0];
-    setQueue(ordered);
-    playSong(start, returnAlbum);
+    const startIndex=ordered.findIndex(song => song.id === startSongId);
+    const start = startIndex >= 0 ? ordered[startIndex] : ordered[0];
+    playbackSessionRef.current={source,tracks:ordered,index:startIndex>=0?startIndex:0};
+    playSong(start,returnAlbum,source,startIndex>=0?startIndex:0);
   }
 
-  async function playSong(song,returnAlbum=null){
+  function playOrderedQueue(tracks, returnAlbum=null, startSongId=null){
+    playSequence(tracks,"sequence",returnAlbum,startSongId);
+  }
+
+  function playArtistSession(tracks){
+    playSequence(tracks,"artist");
+  }
+
+  async function playSong(song,returnAlbum=null,playbackSource=null,sessionIndex=null,startPosition=null){
     const resolvedUrl = getSongUrl(song);
     if(!resolvedUrl)return;
     const a=audio.current;
     if(!a)return;
+    const source=playbackSource||"queue";
+    if(!playbackSource) playbackSessionRef.current=null;
+    const playbackToken=++playbackTokenRef.current;
+    const requestedPosition=Number.isFinite(startPosition)?Math.max(0,startPosition):song.startOffset||0;
+    playbackStartingRef.current=true;
     try{
       a.pause();
       a.src=resolvedUrl;
-      a.currentTime=song.startOffset||0;
+      a.currentTime=requestedPosition;
       a.volume=volume;
       setCurrent(song);
       setRecent(prev=>[song.id,...prev.filter(id=>id!==song.id)].slice(0,30));
-      setPosition(0);
+      setResumeSong(null);
+      setPosition(requestedPosition);
       setDuration(song.duration||0);
+      persistPlaybackResume(song,requestedPosition,song.duration||0,source,playbackSessionRef.current);
       const keepLyrics=pageRef.current==="lyrics";
       const lyricsVisible=keepLyrics && showLyricsRef.current;
       if(pageRef.current !== "lyrics") {
@@ -2211,6 +2715,7 @@ function App(){
       }
       setPlaying(true);
       await a.play();
+      playbackStartingRef.current=false;
       setStats(prev=>({...prev,[song.id]:{
         plays:(prev[song.id]?.plays||0)+1,
         seconds:prev[song.id]?.seconds||0
@@ -2228,42 +2733,128 @@ function App(){
     const a=audio.current;
     if(!current)return playSong(songs[0]);
     if(!a)return;
-    if(a.paused)a.play().then(()=>setPlaying(true)).catch(()=>notify("Press Play again to start audio."));
-    else {a.pause();setPlaying(false)}
+    if(a.paused){
+      playbackStartingRef.current=true;
+      a.play().then(()=>{playbackStartingRef.current=false;setPlaying(true)}).catch(()=>{playbackStartingRef.current=false;notify("Press Play again to start audio.")});
+    } else {
+      a.pause();
+      persistPlaybackResume(current,a.currentTime||0,a.duration||duration,playbackSessionRef.current?.source,playbackSessionRef.current);
+      setPlaying(false);
+    }
   }
 
-  function crossfadeTo(song){
+  function crossfadeTo(song,playbackSource=null,sessionIndex=null){
     const a=audio.current; if(!song)return;
-    if(!a||a.paused){playSong(song);return;}
-    const start=a.volume; let n=0; const fade=setInterval(()=>{n++;a.volume=Math.max(0,start*(1-n/6));if(n>=6){clearInterval(fade);a.volume=start;playSong(song)}},45);
+    if(!a||a.paused){playSong(song,null,playbackSource,sessionIndex);return;}
+    const start=a.volume; let n=0; const fade=setInterval(()=>{n++;a.volume=Math.max(0,start*(1-n/6));if(n>=6){clearInterval(fade);a.volume=start;playSong(song,null,playbackSource,sessionIndex)}},45);
   }
+  function handlePlaybackEnd(playbackToken){
+    if(playbackToken !== playbackTokenRef.current) return;
+    setPlaying(false);
+    const session=playbackSessionRef.current;
+    const currentSong=current;
+    if(session?.source === "artist" || session?.source === "sequence") {
+      const nextSong=getNextArtistSong(session.tracks,session.index);
+      if(repeat && currentSong) {
+        playSong(currentSong,null,session.source,session.index,0);
+        return;
+      }
+      if(nextSong){
+        const nextIndex=session.index+1;
+        playbackSessionRef.current={...session,index:nextIndex};
+        playSong(nextSong,null,session.source,nextIndex);
+        return;
+      }
+      playbackSessionRef.current=null;
+      clearPlaybackResume();
+      const nextQueued=queueRef.current[0];
+      if(nextQueued) playSong(nextQueued);
+      return;
+    }
+    const queuedSongIndex=queueRef.current.findIndex(song=>song?.id===currentSong?.id);
+    if(queuedSongIndex>=0){
+      const nextQueue=removeOneQueuedSong(queueRef.current,currentSong.id);
+      queueRef.current=nextQueue;
+      setQueue(nextQueue);
+      const nextQueued=nextQueue[0];
+      if(nextQueued){playSong(nextQueued);return;}
+    }
+    if(repeat && currentSong) {
+      playSong(currentSong,null,"queue",null,0);
+      return;
+    }
+    if(currentSong){
+      next(currentSong,false);
+      return;
+    }
+    clearPlaybackResume();
+  }
+
   function next(from=current,manual=true){
     if(!from)return;
-    const queueWithAudio = queue.filter(hasSongAudio);
+    const session=playbackSessionRef.current;
+    if(session?.source === "artist" || session?.source === "sequence") {
+      const nextSong=getNextArtistSong(session.tracks,session.index);
+      if(nextSong){
+        const nextIndex=session.index+1;
+        playbackSessionRef.current={...session,index:nextIndex};
+        crossfadeTo(nextSong,session.source,nextIndex);
+        return;
+      }
+      playbackSessionRef.current=null;
+      const nextQueued=queueRef.current[0];
+      if(nextQueued){crossfadeTo(nextQueued);return;}
+      return;
+    }
+    const queueWithAudio = queueRef.current.filter(hasSongAudio);
     if(queueWithAudio.length){ const idx=queueWithAudio.findIndex(s=>s.id===from.id); const candidate=idx>=0 ? queueWithAudio[(idx+1)%queueWithAudio.length] : queueWithAudio[0]; if(candidate){crossfadeTo(candidate);return;} }
-    const i=songs.findIndex(s=>s.id===from.id);
-    const playableSongs=songs.filter(song=>hasSongAudio(song)&&!albumTrackIds.has(song.id));
-    if(!playableSongs.length) return;
-    const ni=shuffle?Math.floor(Math.random()*playableSongs.length):(playableSongs.findIndex(s=>s.id===from.id)+1)%playableSongs.length;
-    crossfadeTo(playableSongs[ni]);
+    const nextSong=getNextCatalogSong(songs,from.id,shuffle,albumTrackIds);
+    if(nextSong) crossfadeTo(nextSong);
   }
   function prev(){
     const a=audio.current;
     if(a&&a.currentTime>4){a.currentTime=0;setPosition(0);return}
     if(!current)return;
-    const queueWithAudio = queue.filter(hasSongAudio);
+    const session=playbackSessionRef.current;
+    if(session?.source === "artist" || session?.source === "sequence") {
+      const previousSong=getPreviousArtistSong(session.tracks,session.index);
+      if(previousSong){
+        const previousIndex=session.index-1;
+        playbackSessionRef.current={...session,index:previousIndex};
+        crossfadeTo(previousSong,session.source,previousIndex);
+        return;
+      }
+      return;
+    }
+    const queueWithAudio = queueRef.current.filter(hasSongAudio);
     if(queueWithAudio.length){ const idx=queueWithAudio.findIndex(s=>s.id===current.id); const candidate=idx>0 ? queueWithAudio[idx-1] : queueWithAudio[queueWithAudio.length-1]; if(candidate){crossfadeTo(candidate);return;} }
     const playableSongs=songs.filter(song=>hasSongAudio(song)&&!albumTrackIds.has(song.id));
     if(!playableSongs.length) return;
     const i=playableSongs.findIndex(s=>s.id===current.id);
     crossfadeTo(playableSongs[i<0?playableSongs.length-1:(i-1+playableSongs.length)%playableSongs.length]);
   }
-  function seekTo(v){const a=audio.current;if(a){a.currentTime=v;setPosition(v)}}
-  function addToQueue(song){setQueue(q=>q.some(x=>x.id===song.id)?q:[...q,song]);notify("Added to queue")}
-  function removeFromQueue(id){setQueue(q=>q.filter(s=>s.id!==id))}
-  function moveQueue(from,to){setQueue(q=>{const next=[...q]; const [item]=next.splice(from,1); next.splice(to,0,item); return next})}
-  function clearQueue(){setQueue([]);notify("Queue cleared")}
-  useEffect(()=>{queueSongAction=addToQueue; return()=>{queueSongAction=()=>{};}},[queue]);
+  function seekTo(v){const a=audio.current;if(a){a.currentTime=v;setPosition(v);if(current){persistPlaybackResume(current,v,a.duration||duration,playbackSessionRef.current?.source,playbackSessionRef.current)}}}
+  function addToQueue(song){setQueue(q=>{const next=q.some(x=>x.id===song.id)?q:[...q,song];queueRef.current=next;return next});notify("Added to queue")}
+  function removeFromQueue(id){setQueue(q=>{const next=q.filter(s=>s.id!==id);queueRef.current=next;return next})}
+  function moveQueue(from,to){setQueue(q=>{const next=[...q]; const [item]=next.splice(from,1); next.splice(to,0,item);queueRef.current=next;return next})}
+  function clearQueue(){setQueue(q=>{queueRef.current=[];return []});notify("Queue cleared")}
+  useEffect(()=>{queueRef.current=queue;queueSongAction=addToQueue; return()=>{queueSongAction=()=>{};}},[queue]);
+  useEffect(()=>{
+    const savePosition=()=>{
+      if(!current||!audio.current||playing)return;
+      persistPlaybackResume(current,audio.current.currentTime||0,a.duration||duration,playbackSessionRef.current?.source,playbackSessionRef.current);
+    };
+    const onVisibilityChange=()=>{if(document.visibilityState==="hidden")savePosition();};
+    const onPageHide=()=>savePosition();
+    document.addEventListener("visibilitychange",onVisibilityChange);
+    window.addEventListener("pagehide",onPageHide);
+    window.addEventListener("beforeunload",onPageHide);
+    return()=>{
+      document.removeEventListener("visibilitychange",onVisibilityChange);
+      window.removeEventListener("pagehide",onPageHide);
+      window.removeEventListener("beforeunload",onPageHide);
+    };
+  },[current,playing,duration]);
   function toggleFollow(name){setFollows(v=>v.includes(name)?v.filter(x=>x!==name):[...v,name])}
   function toggleAlbumLibrary(album){
     if(!album?.id)return;
@@ -2310,7 +2901,7 @@ function App(){
         notify("Download is unavailable because this device is offline right now.");
         return;
       }
-      if("caches" in window){const cache=await caches.open("deluxe-tunes-offline-v1"); const response=await fetch(resolvedUrl); if(!response.ok)throw new Error("download failed"); await cache.put(resolvedUrl,response.clone());}
+      if("caches" in window && canCacheDownloadedAsset(resolvedUrl, window.location.protocol)){const cache=await caches.open("deluxe-tunes-offline-v1"); const response=await fetch(resolvedUrl); if(!response.ok)throw new Error("download failed"); await cache.put(resolvedUrl,response.clone());}
       setDownloads(v=>v.includes(song.id)?v:[...v,song.id]); notify("Downloaded for offline playback");
     }catch(err){console.error(err);notify("Download failed. Try again while online.");}
   }
@@ -2587,8 +3178,14 @@ function App(){
     return()=>window.removeEventListener("popstate",onPop);
   },[]);
 
-  if(COMING_SOON) return <ComingSoon/>;
-  if(!account) return <AccountGate onAuthenticated={setAccount}/>;
+  if(passwordResetToken)return <AccountGate onAuthenticated={setAccount} onServerAuthenticated={handleServerAuthenticated} authError="" resetToken={passwordResetToken}/>;
+  if(accountRecordsPage){
+    if(!serverAuthReady)return <div className="authGate"><div className="authCard"><div className="authBrand"><Logo/><span>DELUXE TUNES</span></div><div className="authCopy"><span>PRIVATE ADMIN TOOL</span><h1>Checking your sign-in…</h1><p>Connecting to your secure account.</p></div></div></div>;
+    if(!serverUser)return <AccountGate onAuthenticated={setAccount} onServerAuthenticated={handleServerAuthenticated} authError={serverAuthError} serverOnly/>;
+    return <AccountRecordsPage/>;
+  }
+  if(!account&&!serverAuthReady)return <div className="authGate"><div className="authCard"><div className="authBrand"><Logo/><span>DELUXE TUNES</span></div><div className="authCopy"><span>YOUR MUSIC. YOUR SPACE.</span><h1>Checking your sign-in…</h1><p>Connecting to your secure account.</p></div></div></div>;
+  if(!account)return <AccountGate onAuthenticated={setAccount} onServerAuthenticated={handleServerAuthenticated} authError={serverAuthError}/>;
 
   function navigate(next,extra={}){
     const depth=Number(window.history.state?.dtDepth||0)+1;
@@ -2600,6 +3197,50 @@ function App(){
     setShowLyrics(Boolean(state.showLyrics));
   }
   function goPage(next){ navigate(next); }
+  function updateStoreData(update){
+    const next=update(storeDataRef.current);
+    storeDataRef.current=next;
+    setStoreData(next);
+    return next;
+  }
+  function redeemCode(code){
+    const result=redeemTuneTokenCode(storeDataRef.current,code);
+    if(result.status==="redeemed"){
+      updateStoreData(()=>result.store);
+      notify(`You earned ${result.tokens.toLocaleString()} Tune Tokens!`);
+    }
+    return result;
+  }
+  function applyAdminGrant(grant){
+    updateStoreData(current=>applyAdminTokenGrants(current,[grant]));
+  }
+  function applyAdminStreak(days){
+    setStreak(current=>setStreakDays(current,days));
+  }
+  function claimRewards(rewardIds){
+    const result=claimStreakRewards(storeDataRef.current,rewardIds);
+    if(!result.tokensEarned)return 0;
+    updateStoreData(()=>result.store);
+    notify(`You earned ${result.tokensEarned} Tune Tokens!`);
+    return result.tokensEarned;
+  }
+  function purchaseCustomization(type,id){
+    const item=type==="color"?LYRICS_TEXT_COLORS.find(color=>color.id===id):LYRICS_BACKDROPS.find(backdrop=>backdrop.id===id);
+    if(!item)return;
+    const freeItem=(type==="color"&&id==="white")||(type==="backdrop"&&id==="mount-back");
+    const price=freeItem?0:type==="color"?5:15;
+    updateStoreData(previous=>{
+      const ownedKey=type==="color"?"ownedColors":"ownedBackdrops";
+      if(previous[ownedKey].includes(id)||previous.balance<price)return previous;
+      return {...previous,balance:previous.balance-price,[ownedKey]:[...previous[ownedKey],id]};
+    });
+  }
+  function equipCustomization(type,id){
+    const ownedKey=type==="color"?"ownedColors":"ownedBackdrops";
+    if(!storeDataRef.current[ownedKey].includes(id))return;
+    if(type==="color"&&LYRICS_TEXT_COLORS.some(color=>color.id===id))setLyricsTextColor(id);
+    if(type==="backdrop"&&LYRICS_BACKDROPS.some(backdrop=>backdrop.id===id))setLyricsBackdrop(id);
+  }
   function openArtist(name){ navigate("artist-profile",{selectedArtist:name}); }
   function openAlbum(album){ navigate("album",{selectedAlbum:album}); }
   function playAlbum(album,returnAlbum=null){
@@ -2623,20 +3264,24 @@ function App(){
       await friendsApi("/api/auth/logout",{method:"POST"});
     }catch(error){
       console.error("[Friends sign-out]",error.message);
+      notify("The server could not confirm sign-out. You are still signed in; check your connection and try again.");
+      return;
     }
     localStorage.removeItem(STORAGE_KEYS.session);
+    setServerUser(null);
     setSettingsOpen(false);
     setAccount(null);
     setCurrent(null);
     setPlaying(false);
   }
 
-  const nav=[["home","Home",Home],["search","Search",Search],["library","Your Library",Library],["artists","Artists",Users],["friends","Friends",Users],["stats","Your Stats",BarChart3]];
+  const nav=[["home","Home",Home],["search","Search",Search],["library","Your Library",Library],["artists","Artists",Users],["stats","Your Stats",BarChart3],["store","Store",ShoppingCart]];
 
   return <div className="app">
     <aside className="side"><Logo/>
       <div className="navGroup">{nav.map(([id,label,I])=><button className={page===id?"nav active":"nav"} onClick={()=>goPage(id)} key={id}><I size={19}/><span>{label}</span></button>)}</div>
       <div className="sideFooter">
+        <button className="sideFooterLink" type="button" onClick={()=>goPage("redeem")}><Gift size={15}/><span>Redeem</span></button>
         <a href="https://mail.google.com/mail/?view=cm&fs=1&to=deluxe.tuness@gmail.com" target="_blank" rel="noreferrer"><Mail size={15}/><span>Contact support</span></a>
         <small>Deluxe Tunes v{APP_VERSION}</small>
       </div>
@@ -2644,18 +3289,19 @@ function App(){
 
     <main><header className="topbar"><div className="mobileLogo"><Logo compact/></div>
       {page!=="search"&&<div className="topbarSpacer"/>}
-      <div className="headerActions"><button className="avatar accountAvatar" onClick={()=>setSettingsOpen(true)} aria-label="Open account and settings">{account.avatar?<img src={account.avatar} alt=""/>:String(account.nickname||"DT").slice(0,2).toUpperCase()}</button></div>
+      <div className="headerActions"><div className="tuneTokenBalance" aria-label={`Tune Tokens balance: ${storeData.balance}`}><img src="/images/TuneTokens.png" alt="Tune Tokens"/><span>{storeData.balance}</span></div><button className="avatar accountAvatar" onClick={()=>setSettingsOpen(true)} aria-label="Open account and settings">{account.avatar?<img src={account.avatar} alt=""/>:String(account.nickname||"DT").slice(0,2).toUpperCase()}</button></div>
     </header>
       {page==="home"&&updateAvailable&&<UpdateNotice/>}
       {page==="home"&&<HomePage current={current} songs={songs} topSongs={topSongs} recentSongs={recentlyPlayedSongs} likes={likes} play={playSong} playAlbum={playAlbum} like={toggleLike} addToPlaylist={addToPlaylist} downloadSong={downloadSong} downloads={downloads} goStats={()=>goPage("stats")} goSearch={()=>goPage("search")} openArtist={openArtist} openAlbum={openAlbum} follows={follows}/>} 
-      {page==="search"&&<SearchPage songs={filtered} artists={filteredArtists} likes={likes} play={playSong} like={toggleLike} query={query} setQuery={setQuery} back={mobileBack} openArtist={openArtist} recentSearches={recentSearches} setRecentSearches={setRecentSearches} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
+      {page==="search"&&<SearchPage songs={query.trim()?filtered:songs} artists={query.trim()?filteredArtists:artistSearchCatalog} albums={query.trim()?filteredAlbums:albumRecords} singles={query.trim()?filteredSingles:ALBUMS_WITH_ASSETS.filter(a=>a.type==="single")} likes={likes} play={playSong} like={toggleLike} query={query} setQuery={setQuery} back={mobileBack} openArtist={openArtist} openAlbum={openAlbum} recentSearches={recentSearches} setRecentSearches={setRecentSearches} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
       {page==="library"&&<LibraryPage songs={songs} albums={albumRecords} libraryAlbums={libraryAlbums} toggleAlbumLibrary={toggleAlbumLibrary} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong} tab={libraryTab} setTab={setLibraryTab} openArtist={openArtist} openAlbum={openAlbum} playlists={playlists} addPlaylist={addPlaylist} openPlaylist={openPlaylist} editPlaylist={editPlaylist} deletePlaylist={deletePlaylist} follows={follows}/>} 
       {page==="artists"&&<ArtistsPage songs={songs} openArtist={openArtist} follows={follows} toggleFollow={toggleFollow}/>}
-      {page==="friends"&&<FriendsPage localAccount={account} songs={songs} play={playSong} currentSong={current} playing={playing} currentStreak={streak.current}/>}
-      {page==="artist-profile"&&<ArtistProfile artist={selectedArtist} songs={songs} stats={stats} livePlays={livePlays} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} back={mobileBack} openAlbum={openAlbum} follows={follows} toggleFollow={toggleFollow} downloads={downloads} downloadSong={downloadSong} playOrderedQueue={playOrderedQueue}/>} 
+      {page==="artist-profile"&&<ArtistProfile artist={selectedArtist} songs={songs} stats={stats} livePlays={livePlays} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} back={mobileBack} openAlbum={openAlbum} follows={follows} toggleFollow={toggleFollow} downloads={downloads} downloadSong={downloadSong} playArtistSession={playArtistSession}/>} 
       {page==="album"&&<AlbumPage album={selectedAlbum} songs={songs} stats={stats} sharedPlays={sharedPlays} likes={likes} play={playSong} like={toggleLike} playAlbum={playAlbum} back={mobileBack} libraryAlbums={libraryAlbums} toggleAlbumLibrary={toggleAlbumLibrary} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
       {page==="playlist"&&<PlaylistPage playlist={selectedPlaylist} songs={songs} likes={likes} play={playSong} like={toggleLike} addToPlaylist={addToPlaylist} removeFromPlaylist={removeFromPlaylist} editPlaylist={editPlaylist} deletePlaylist={deletePlaylist} downloads={downloads} downloadSong={downloadSong} back={mobileBack}/>}
-      {page==="lyrics"&&<LyricsPage songs={songs} current={current} position={position} play={playSong} showLyrics={showLyrics} setShowLyrics={setShowLyrics} back={mobileBack} backLabel={playbackReturnAlbum?`Back To ${playbackReturnAlbum.title}`:"Back"} queueSongs={queueSongs} queueOpen={queueOpen} setQueueOpen={setQueueOpen} addToQueue={addToQueue} removeFromQueue={removeFromQueue} moveQueue={moveQueue} focusMode={focusMode} setFocusMode={setFocusMode} next={next} prev={prev}/>}
+      {page==="lyrics"&&<LyricsPage songs={songs} current={current} position={position} play={playSong} showLyrics={showLyrics} setShowLyrics={setShowLyrics} backdropId={lyricsBackdrop} textColorId={lyricsTextColor} back={mobileBack} backLabel={playbackReturnAlbum?`Back To ${playbackReturnAlbum.title}`:"Back"} queueSongs={queueSongs} queueOpen={queueOpen} setQueueOpen={setQueueOpen} addToQueue={addToQueue} removeFromQueue={removeFromQueue} moveQueue={moveQueue} focusMode={focusMode} setFocusMode={setFocusMode} next={next} prev={prev}/>}
+      {page==="store"&&<StorePage balance={storeData.balance} ownedColors={storeData.ownedColors} ownedBackdrops={storeData.ownedBackdrops} textColorId={lyricsTextColor} backdropId={lyricsBackdrop} purchase={purchaseCustomization} equip={equipCustomization}/>}
+      {page==="redeem"&&<RedeemPage onRedeem={redeemCode} onApplyAdminGrant={applyAdminGrant} onSetAdminStreak={applyAdminStreak}/>}
       {page==="stats"&&<StatsPage songs={songs} stats={stats} livePlays={livePlays} seconds={totalSeconds} plays={totalPlays} back={mobileBack} play={playSong} like={toggleLike} likes={likes} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong}/>}
     </main>
 
@@ -2719,17 +3365,17 @@ function App(){
 
     {queueOpen&&<QueuePanel songs={songs} queueSongs={queueSongs} current={current} likes={likes} like={toggleLike} addToPlaylist={addToPlaylist} downloads={downloads} downloadSong={downloadSong} onClose={()=>setQueueOpen(false)} removeFromQueue={removeFromQueue} moveQueue={moveQueue} addToQueue={addToQueue} play={playSong} clearQueue={clearQueue}/>} 
     {playlistPickerSong&&<PlaylistPicker song={playlistPickerSong} playlists={playlists} addPlaylist={addPlaylist} addToPlaylist={addToPlaylist} onClose={()=>setPlaylistPickerSong(null)}/>}
-    {settingsOpen&&<SettingsPanel account={account} setAccount={setAccount} theme={theme} setTheme={setTheme} discordConnected={discordConnected} setDiscordConnected={setDiscordConnected} discordAuth={discordAuth} setDiscordAuth={setDiscordAuth} spotifyConnected={spotifyConnected} setSpotifyConnected={setSpotifyConnected} spotifyProfile={spotifyProfile} setSpotifyProfile={setSpotifyProfile} spotifyAuthState={spotifyAuthState} setSpotifyAuthState={setSpotifyAuthState} matchSongFromSpotify={matchSongFromSpotify} extractSpotifyTrackFromEntry={extractSpotifyTrackFromEntry} onImportSpotifyPlaylists={importSpotifyPlaylists} onImportSpotifyLikedSongs={importSpotifyLikedSongs} onImportSpotifyHistory={importSpotifyHistory} onImportSpotifyPlaylist={importSpotifyPlaylist} onSignOut={signOut} onClose={()=>setSettingsOpen(false)} sleepTimer={sleepTimer} setSleepTimer={setSleepTimer} streak={streak} streakMilestoneInfo={streakMilestoneInfo} streakHistory={streakHistory} streakCalendar={streakCalendar}/>}
+    {settingsOpen&&<SettingsPanel account={account} setAccount={setAccount} persistLocalAccount={!account.serverAuthenticated} theme={theme} setTheme={setTheme} discordConnected={discordConnected} setDiscordConnected={setDiscordConnected} discordAuth={discordAuth} setDiscordAuth={setDiscordAuth} spotifyConnected={spotifyConnected} setSpotifyConnected={setSpotifyConnected} spotifyProfile={spotifyProfile} setSpotifyProfile={setSpotifyProfile} spotifyAuthState={spotifyAuthState} setSpotifyAuthState={setSpotifyAuthState} matchSongFromSpotify={matchSongFromSpotify} extractSpotifyTrackFromEntry={extractSpotifyTrackFromEntry} onImportSpotifyPlaylists={importSpotifyPlaylists} onImportSpotifyLikedSongs={importSpotifyLikedSongs} onImportSpotifyHistory={importSpotifyHistory} onImportSpotifyPlaylist={importSpotifyPlaylist} onSignOut={signOut} onClose={()=>setSettingsOpen(false)} sleepTimer={sleepTimer} setSleepTimer={setSleepTimer} streak={streak} streakMilestoneInfo={streakMilestoneInfo} streakHistory={streakHistory} streakCalendar={streakCalendar} rewards={storeData.rewards} balance={storeData.balance} onClaimRewards={claimRewards}/>}
     <audio ref={audio} preload="metadata"/>
     {toast&&<div className="toast">{toast}</div>}
   </div>
 }
 
-function HomePage({current,songs,topSongs,recentSongs,likes,play,playAlbum,like,addToPlaylist,downloadSong,downloads,goStats,goSearch,openArtist,openAlbum,follows}){
+function HomePage({current,songs,topSongs,recentSongs,likes,play,playAlbum,like,addToPlaylist,downloadSong,downloads,goStats,goSearch,openArtist,openAlbum,follows,resumeSong,resumePosition,resumeSource,resume}){
  const newestSongs=songs.slice().reverse();
  const newestPair=newestSongs.slice(0,2);
- const sourceAlbum=newestPair.length?ALBUMS.find(album=>album.trackIds?.some(id=>newestPair.some(song=>song.id===id))):null;
- const generatedAlbum=!sourceAlbum&&newestPair[0]?.album?{id:`album-${newestPair[0].album.toLowerCase().replace(/[^a-z0-9]+/g,"-")}`,title:newestPair[0].album,artist:newestPair[0].artist,genre:newestPair[0].genre,artwork:newestPair[0].artwork,trackIds:songs.filter(song=>song.album===newestPair[0].album).map(song=>song.id)}:null;
+ const sourceAlbum=newestPair.length?ALBUMS.find(album=>isVisibleAlbum(album.title)&&album.trackIds?.some(id=>newestPair.some(song=>song.id===id))):null;
+ const generatedAlbum=!sourceAlbum&&newestPair[0]?.album&&isVisibleAlbum(newestPair[0].album)?{id:`album-${newestPair[0].album.toLowerCase().replace(/[^a-z0-9]+/g,"-")}`,title:newestPair[0].album,artist:newestPair[0].artist,genre:newestPair[0].genre,artwork:newestPair[0].artwork,trackIds:songs.filter(song=>song.album===newestPair[0].album).map(song=>song.id)}:null;
  const recentAlbum=(sourceAlbum||generatedAlbum)&&{...(sourceAlbum||generatedAlbum),songs:songs.filter(song=>(sourceAlbum?.trackIds||[]).includes(song.id)||song.album===(sourceAlbum||generatedAlbum).title)};
  const badSingle=ALBUMS.find(album=>album.id==="bad-oneda-single");
  const albumTrackIds=new Set(recentAlbum?.trackIds||[]);
@@ -2748,6 +3394,7 @@ function HomePage({current,songs,topSongs,recentSongs,likes,play,playAlbum,like,
  const latestIsAlbum=Boolean(!wakeUpSingle&&wildchildAlbum&&latestFeatured.id===wildchildAlbum.id);
  return <section className="page homeRedesign">
   <HomeEditorial current={latestFeatured} latestIsAlbum={latestIsAlbum} songs={songs} likes={likes} follows={follows} play={play} playAlbum={playAlbum} openAlbum={openAlbum} goSearch={goSearch} goStats={goStats}/>
+  {resumeSong&&<div className="resumePlaybackCard"><div className="resumePlaybackArtwork"><Cover song={resumeSong}/></div><div className="resumePlaybackCopy"><span>CONTINUE LISTENING</span><h3>{resumeSong.title}</h3><p>{resumeSong.artist}</p><small>{fmt(resumePosition)} of {fmt(resumeSong.duration||resumePosition)}</small></div><button className="resumePlaybackButton" onClick={resume}><Play size={16} fill="currentColor"/> Continue listening</button></div>}
   <div className="homeSectionHead recentlyAddedHead"><div><span>NEW ARRIVALS</span><h2>New Arrivals.</h2></div><button onClick={goSearch}>Browse all <ChevronRight size={14}/></button></div>
   {recentlyAdded.length?<div className="cards homeRail recentlyAddedRail">{recentlyAdded.map(item=>item.kind==="album"?<AlbumCard key={item.value.id} album={item.value} onOpen={()=>openAlbum(item.value)}/>:<Card key={item.value.id} song={item.value} liked={likes.includes(item.value.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads?.includes(item.value.id)} downloadSong={downloadSong}/>)}</div>:<div className="empty compactEmpty"><Music2 size={28}/><b>Your next favorite is waiting.</b><span>Search for music to start building your collection.</span></div>}
  </section>
@@ -2827,11 +3474,35 @@ function PageBack({onClick,label="Back"}){return <button className="backButton p
 function MobileBack({onClick,label="Back"}){return <button className="mobileBack" onClick={onClick} aria-label={label}><ArrowLeft size={17}/><span>{label}</span></button>}
 function TrackListHeader(){return <div className="albumTrackHeader"><span>#</span><span>Title</span><span>Plays</span><span><Clock3 size={15} aria-label="Duration"/></span></div>}
 
-function SearchPage({songs,artists,likes,play,like,query,setQuery,back,openArtist,recentSearches,setRecentSearches,addToPlaylist,downloads,downloadSong}){
+function SearchPage({songs,artists,albums=[],singles=[],likes,play,like,query,setQuery,back,openArtist,openAlbum,recentSearches,setRecentSearches,addToPlaylist,downloads,downloadSong}){
  const [filter,setFilter]=useState("all");
  function submitSearch(v){setQuery(v); if(v.trim()) setRecentSearches(x=>[v.trim(),...x.filter(q=>q.toLowerCase()!==v.trim().toLowerCase())].slice(0,10));}
- const visibleSongs=filter==="artists"?[]:songs; const visibleArtists=filter==="songs"?[]:artists;
- return <section className="page searchPage"><MobileBack onClick={back} label="Back"/><div className="pageHeading"><span>SEARCH</span><h1>{query?`Results for “${query}”`:"Find something to play."}</h1><p>Search for a song or artist to see results.</p><div className="searchPageInput"><Search size={17}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitSearch(query)} placeholder="Search songs or artists..."/></div></div>{!query.trim()&&recentSearches.length>0&&<><Section title="Recent searches"/><div className="recentSearches">{recentSearches.map(q=><button key={q} onClick={()=>submitSearch(q)}><Clock3 size={14}/>{q}<X size={13} onClick={e=>{e.stopPropagation();setRecentSearches(x=>x.filter(v=>v!==q))}}/></button>)}</div></>}{query.trim()&&<div className="searchFilters"><button className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>All</button><button className={filter==="songs"?"active":""} onClick={()=>setFilter("songs")}>Songs</button><button className={filter==="artists"?"active":""} onClick={()=>setFilter("artists")}>Artists</button></div>}{query.trim()&&visibleArtists.length>0&&<><Section title="Artists"/><div className="searchArtistGrid">{visibleArtists.map(a=><button className="searchArtistCard" key={a.artistId||a.name} onClick={()=>openArtist(a.name)}><div className="searchArtistImage">{a.image?<img src={a.image} alt=""/>:<span>{a.name.slice(0,1)}</span>}</div><div><strong>{a.name} <BadgeCheck className="verifiedIcon" size={14} aria-label="Verified by Deluxe Tunes"/></strong><small>Artist</small></div></button>)}</div></>}{query.trim()&&visibleSongs.length>0&&<><Section title="Songs"/><div className="resultList">{visibleSongs.map((s,i)=><Row key={s.id} song={s} n={i+1} liked={likes.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads.includes(s.id)} downloadSong={downloadSong}/>)}</div></>}{query.trim()&&!visibleSongs.length&&!visibleArtists.length&&<div className="empty"><Search size={38}/><b>No results</b><span>Try a song title or artist name.</span></div>}</section>}
+ const hasSearchText = Boolean(query.trim());
+ const visibleSongs=filter==="all"||filter==="songs"?songs:[];
+ const visibleArtists=filter==="all"||filter==="artists"?artists:[];
+ const visibleAlbums=filter==="all"||filter==="albums"?albums:[];
+ const visibleSingles=filter==="all"||filter==="singles"?singles:[];
+ const hasAnyResults = visibleSongs.length || visibleArtists.length || visibleAlbums.length || visibleSingles.length;
+
+ const sectionSongs = visibleSongs;
+ const sectionArtists = visibleArtists;
+ const sectionAlbums = visibleAlbums;
+ const sectionSingles = visibleSingles;
+
+ const renderCatalogSection = (items, title, kind) => {
+   if (!items.length) return null;
+   if (kind === "song") return <><Section title={title}/><div className="resultList">{items.map((s,i)=><Row key={s.id} song={s} n={i+1} liked={likes.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads.includes(s.id)} downloadSong={downloadSong}/>)}</div></>;
+   if (kind === "artist") return <><Section title={title}/><div className="searchArtistGrid">{items.map(a=><button className="searchArtistCard" key={a.artistId||a.name} onClick={()=>openArtist(a.name)}><div className="searchArtistImage">{a.image?<img src={a.image} alt=""/>:<span>{a.name.slice(0,1)}</span>}</div><div><strong>{a.name} <BadgeCheck className="verifiedIcon" size={14} aria-label="Verified by Deluxe Tunes"/></strong><small>Artist</small></div></button>)}</div></>;
+   return <><Section title={title}/><div className="artistAlbumGrid">{items.map(item=><AlbumCard key={item.id} album={item} onOpen={()=>openAlbum(item)}/>)}</div></>;
+ };
+
+ return <section className="page searchPage"><MobileBack onClick={back} label="Back"/><div className="pageHeading"><span>SEARCH</span><h1>{hasSearchText?`Results for “${query}”`:"Find something to play."}</h1><p>Search for a song or artist to see results.</p><div className="searchPageInput"><Search size={17}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitSearch(query)} placeholder="Search songs or artists..."/></div></div><div className="searchFilters" aria-label="Search filters"><button type="button" className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>All</button><button type="button" className={filter==="songs"?"active":""} onClick={()=>setFilter("songs")}>Songs</button><button type="button" className={filter==="artists"?"active":""} onClick={()=>setFilter("artists")}>Artists</button><button type="button" className={filter==="albums"?"active":""} onClick={()=>setFilter("albums")}>Albums</button><button type="button" className={filter==="singles"?"active":""} onClick={()=>setFilter("singles")}>Singles</button></div>{!hasSearchText && filter==="all" && <>
+   {renderCatalogSection(sectionSongs, "Songs", "song")}
+   {renderCatalogSection(sectionArtists, "Artists", "artist")}
+   {renderCatalogSection(sectionAlbums, "Albums", "album")}
+   {renderCatalogSection(sectionSingles, "Singles", "single")}
+   {!hasAnyResults && <div className="empty"><Search size={38}/><b>No results</b><span>Try a song title, artist name, album title or single title.</span></div>}
+ </>}{!hasSearchText && filter==="songs" && renderCatalogSection(sectionSongs, "Songs", "song")}{!hasSearchText && filter==="artists" && renderCatalogSection(sectionArtists, "Artists", "artist")}{!hasSearchText && filter==="albums" && renderCatalogSection(sectionAlbums, "Albums", "album")}{!hasSearchText && filter==="singles" && renderCatalogSection(sectionSingles, "Singles", "single")}{hasSearchText&&visibleArtists.length>0&&<><Section title="Artists"/><div className="searchArtistGrid">{visibleArtists.map(a=><button className="searchArtistCard" key={a.artistId||a.name} onClick={()=>openArtist(a.name)}><div className="searchArtistImage">{a.image?<img src={a.image} alt=""/>:<span>{a.name.slice(0,1)}</span>}</div><div><strong>{a.name} <BadgeCheck className="verifiedIcon" size={14} aria-label="Verified by Deluxe Tunes"/></strong><small>Artist</small></div></button>)}</div></>}{hasSearchText&&visibleSongs.length>0&&<><Section title="Songs"/><div className="resultList">{visibleSongs.map((s,i)=><Row key={s.id} song={s} n={i+1} liked={likes.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads.includes(s.id)} downloadSong={downloadSong}/>)}</div></>}{hasSearchText&&visibleAlbums.length>0&&<><Section title="Albums"/><div className="artistAlbumGrid">{visibleAlbums.map(album=><AlbumCard key={album.id} album={album} onOpen={()=>openAlbum(album)}/>)}</div></>}{hasSearchText&&visibleSingles.length>0&&<><Section title="Singles"/><div className="artistAlbumGrid">{visibleSingles.map(single=><AlbumCard key={single.id} album={single} onOpen={()=>openAlbum(single)}/>)}</div></>}{hasSearchText&&!hasAnyResults&&<div className="empty"><Search size={38}/><b>No results</b><span>Try a song title, artist name, album title or single title.</span></div>}{!hasSearchText&&recentSearches.length>0&&<><Section title="Recent searches"/><div className="recentSearches">{recentSearches.map(q=><button key={q} onClick={()=>submitSearch(q)}><Clock3 size={14}/>{q}<X size={13} onClick={e=>{e.stopPropagation();setRecentSearches(x=>x.filter(v=>v!==q))}}/></button>)}</div></>}{!hasSearchText && filter==="all" && !hasAnyResults && <div className="empty"><Search size={38}/><b>No results</b><span>Try a song title, artist name, album title or single title.</span></div>}</section>}
 
 function LibraryPage({songs,albums,libraryAlbums,toggleAlbumLibrary,likes,play,like,addToPlaylist,downloads,downloadSong,tab,setTab,openArtist,openAlbum,playlists,addPlaylist,openPlaylist,editPlaylist,deletePlaylist,follows=[]}){
  const [sort,setSort]=useState("date"); const liked=songs.filter(s=>likes.includes(s.id)); const sorted=[...liked].sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="artist"?a.artist.localeCompare(b.artist):sort==="album"?(a.album||"").localeCompare(b.album||""):0);
@@ -2894,40 +3565,27 @@ function AlbumTrack({song,n,plays,liked,play,like,addToPlaylist,downloaded,downl
 }
 
 const ARTISTS=[
-  {artistId:"sienna-spiro",name:"Sienna Spiro",meta:"SIENNA SPIRO",image:"/images/artist-sienna-spiro.jpg",songId:"sienna-the-visitor",accent:"lime"},
-  {artistId:"aitch",name:"Aitch",meta:"Aitch",image:"/images/artist-aitch.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan"},
-  {artistId:"aj-tracey",name:"AJ Tracey",meta:"AJ Tracey",image:"/images/artist-aj-tracey.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan"},
-  {artistId:"dave",name:"Dave",meta:"Dave",image:"/images/artist-dave.png",songId:"thiago-silva-dave-aj-tracey",accent:"red"},
-  {artistId:"tay-keith",name:"Tay Keith",meta:"Tay Keith",image:"/images/artist-tay-keith.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan"},
-  {artistId:"alexandra-burke",name:"Alexandra Burke",meta:"Alexandra Burke",image:"/images/artist-alexandra-burke.jpg",songId:"alexandra-burke-hallelujah",accent:"gold"},
-  {artistId:"leona-lewis",name:"Leona Lewis",meta:"Leona Lewis",image:"/images/artist-leona-lewis.png",songId:"footprints-in-the-sand-leona-lewis",accent:"gold" /* legacy catalogue anchor: songId:"run-leona-lewis" */},
-  {artistId:"stormzy",name:"Stormzy",meta:"Stormzy",image:"/images/artist-stormzy.png",songId:"clash-dave-stormzy",accent:"violet"},
-  {artistId:"oneda",name:"OneDa",meta:"OneDa",image:"/images/artist-oneda.png",songId:"bad-oneda",accent:"maroon"},
-  {artistId:"vibe-chemistry",name:"Vibe Chemistry",meta:"Vibe Chemistry",image:"/images/artist-vibe-chemistry.png",songId:"balling-vibe-chemistry",accent:"cyan"},
-  {artistId:"alex-warren",name:"Alex Warren",meta:"Alex Warren",image:"/images/artist-alex-warren.png",songId:null,accent:"rose"},
-  {artistId:"christian-gates",name:"Chri$tian Gate$",meta:"Chri$tian Gate$",image:"/images/artist-chritian-gate.png",songId:"numb-christian-gates",accent:"rose"},
-  {artistId:"d-block-europe",name:"D-Block Europe",meta:"D-Block Europe",image:"/images/artist-d-block-europe.png",songId:"ufo-d-block-europe-aitch",accent:"peach"},
-  {artistId:"arrdee",name:"ArrDee",meta:"ArrDee",image:"/images/artist-arrdee.png",songId:"flowers-say-my-name-arrdee",accent:"lime"},
-  {artistId:"bella-kay",name:"Bella Kay",meta:"Bella Kay",image:"/images/artist-bella-kay.png",songId:"bella-kay-iloveitiloveitiloveit",accent:"teal"}
+  {artistId:"sienna-spiro",name:"Sienna Spiro",meta:"SIENNA SPIRO",image:"/images/artist-sienna-spiro.jpg",songId:"sienna-the-visitor",accent:"lime",verifiedBy:"Spotify",monthlyListeners:33132095},
+  {artistId:"aitch",name:"Aitch",meta:"Aitch",image:"/images/artist-aitch.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan",verifiedBy:"Spotify",monthlyListeners:10376602},
+  {artistId:"aj-tracey",name:"AJ Tracey",meta:"AJ Tracey",image:"/images/artist-aj-tracey.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan",verifiedBy:"Spotify",monthlyListeners:5235909},
+  {artistId:"dave",name:"Dave",meta:"Dave",image:"/images/artist-dave.png",songId:"thiago-silva-dave-aj-tracey",accent:"red",verifiedBy:"Spotify",monthlyListeners:31234198},
+  {artistId:"ed-sheeran",name:"Ed Sheeran",meta:"Ed Sheeran",image:"/images/artist-ed-sheeran.png",songId:"shape-of-you-ed-sheeran",accent:"gold",verifiedBy:"Spotify",monthlyListeners:79655559},
+  {artistId:"tay-keith",name:"Tay Keith",meta:"Tay Keith",image:"/images/artist-tay-keith.jpg",songId:"rain-aitch-aj-tracey",accent:"cyan",verifiedBy:"Spotify",monthlyListeners:986661},
+  {artistId:"alexandra-burke",name:"Alexandra Burke",meta:"Alexandra Burke",image:"/images/artist-alexandra-burke.jpg",songId:"alexandra-burke-hallelujah",accent:"gold",verifiedBy:"Spotify",monthlyListeners:737579},
+  {artistId:"leona-lewis",name:"Leona Lewis",meta:"Leona Lewis",image:"/images/artist-leona-lewis.png",songId:"footprints-in-the-sand-leona-lewis",accent:"gold",verifiedBy:"Spotify",monthlyListeners:11875094 /* legacy catalogue anchor: songId:"run-leona-lewis" */},
+  {artistId:"stormzy",name:"Stormzy",meta:"Stormzy",image:"/images/artist-stormzy.png",songId:"clash-dave-stormzy",accent:"violet",verifiedBy:"Spotify",monthlyListeners:8170306},
+  {artistId:"oneda",name:"OneDa",meta:"OneDa",image:"/images/artist-oneda.png",songId:"bad-oneda",accent:"maroon",verifiedBy:"Spotify",monthlyListeners:145247},
+  {artistId:"vibe-chemistry",name:"Vibe Chemistry",meta:"Vibe Chemistry",image:"/images/artist-vibe-chemistry.png",songId:"balling-vibe-chemistry",accent:"cyan",verifiedBy:"Spotify",monthlyListeners:1132817},
+  {artistId:"alex-warren",name:"Alex Warren",meta:"Alex Warren",image:"/images/artist-alex-warren.png",songId:null,accent:"rose",verifiedBy:"Spotify",monthlyListeners:45734320},
+  {artistId:"sam-smith",name:"Sam Smith",meta:"Sam Smith",image:"/images/artist-sam-smith.png",songId:"money-on-my-mind-sam-smith",accent:"violet",verifiedBy:"Spotify",monthlyListeners:54200000},
+  {artistId:"christian-gates",name:"Chri$tian Gate$",meta:"Chri$tian Gate$",image:"/images/artist-chritian-gate.png",songId:"numb-christian-gates",accent:"rose",verifiedBy:"Spotify",monthlyListeners:1562716},
+  {artistId:"d-block-europe",name:"D-Block Europe",meta:"D-Block Europe",image:"/images/artist-d-block-europe.png",songId:"ufo-d-block-europe-aitch",accent:"peach",verifiedBy:"Spotify",monthlyListeners:8242587},
+  {artistId:"arrdee",name:"ArrDee",meta:"ArrDee",image:"/images/artist-arrdee.png",songId:"flowers-say-my-name-arrdee",accent:"lime",verifiedBy:"Spotify",monthlyListeners:3356118},
+  {artistId:"bella-kay",name:"Bella Kay",meta:"Bella Kay",image:"/images/artist-bella-kay.png",songId:"bella-kay-iloveitiloveitiloveit",accent:"teal",verifiedBy:"Spotify",monthlyListeners:12305601}
 ].map(artist=>({...artist,image:assetUrl(artist.image)}));
  function ArtistsPage({songs,openArtist,follows,toggleFollow}){return <section className="page artistsPage"><div className="pageHeading"><span>ARTISTS</span><h1>Artists you might like.</h1><p>Follow artists to shape your home feed.</p></div><div className="artistPageGrid">{ARTISTS.map(a=>{const song=songs.find(s=>s.id===a.songId)||songs.find(s=>s.artist?.toLowerCase().includes(a.name.toLowerCase()))||songs[0];const followed=follows?.includes(a.name);return <article className="artistPageCard" key={a.name}><button className="artistOpen" onClick={()=>openArtist(a.name)}><div className="artistPageImage">{a.image?<img src={a.image} alt=""/>:<Cover song={song}/>}</div><div className="artistPageMeta"><h2>{a.name} <BadgeCheck className="verifiedIcon" size={16} aria-label="Verified by Deluxe Tunes"/></h2></div></button><button className={followed?"followBtn active":"followBtn"} onClick={()=>toggleFollow(a.name)}>{followed?"Following":"Follow"}</button></article>})}</div></section>}
 
-function buildArtistPlayQueue(artist, songs, orderedArtistSongs){
-  const artistLower=(artist||"").toLowerCase();
-  const artistTrackIds=new Set((orderedArtistSongs||[]).map(song=>song.id));
-  const primaryGenre = orderedArtistSongs.find(song=>song.genre)?.genre;
-  const similarGenreSongs = primaryGenre ? songs.filter(song => {
-    if (!song.genre || song.genre !== primaryGenre) return false;
-    if (artistTrackIds.has(song.id)) return false;
-    if (!hasSongAudio(song)) return false;
-    const songArtist=(song.artist||"").toLowerCase();
-    const featured=(song.featuredArtists||[]).map(name=>name.toLowerCase());
-    return !songArtist.includes(artistLower) && !featured.includes(artistLower);
-  }).slice(0, 5) : [];
-  return [...(orderedArtistSongs||[]), ...similarGenreSongs];
-}
-
-function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlaylist,back,openAlbum,follows,toggleFollow,downloads,downloadSong,playOrderedQueue}){
+function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlaylist,back,openAlbum,follows,toggleFollow,downloads,downloadSong,playArtistSession}){
   const data=ARTISTS.find(a=>a.name===artist);
   const artistAlbums=ALBUMS_WITH_ASSETS.filter(a=>a.artist?.toLowerCase()===artist?.toLowerCase() && a.type==="album").map(a=>({...a,songs:(a.trackIds||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean)}));
   const artistSingles=ALBUMS_WITH_ASSETS.filter(a=>a.artist?.toLowerCase()===artist?.toLowerCase() && a.type==="single").map(a=>({...a,songs:(a.trackIds||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean)}));
@@ -2987,8 +3645,7 @@ function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlayli
   });
   const orderedArtistSongs=displayArtistSongs.filter(hasSongAudio);
   const popularSongs=displayArtistSongs;
-  const artistPlayQueue = buildArtistPlayQueue(artist, songs, orderedArtistSongs);
-  const primaryArtistQueue = artistPlayQueue.length ? artistPlayQueue : popularSongs.length ? popularSongs : orderedArtistSongs;
+  const artistFirstName = (artist || "").split(/\s+/)[0] || "Artist";
   const [profileTab,setProfileTab]=useState("songs");
   useEffect(()=>setProfileTab("songs"),[artist]);
   const fallback=artistSongs[0]||songs.find(s=>s.artist?.toLowerCase().includes(artist?.toLowerCase()||""))||songs[0];
@@ -2997,7 +3654,14 @@ function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlayli
     <PageBack onClick={back} label="Back To Artists"/>
     <div className="artistProfileHero">
       <div className="artistProfileAvatar">{data?.image?<img src={data.image} alt=""/>:<Cover song={fallback} size="heroCover"/>}</div>
-      <div className="artistProfileCopy"><span>ARTIST</span><h1>{artist} <BadgeCheck className="verifiedIcon profileVerifiedIcon" size={25} aria-label="Verified by Deluxe Tunes"/></h1><div className="verifiedBy"><BadgeCheck size={14}/> Verified by Deluxe Tunes</div><p>{artistSongs.length} {artistSongs.length===1?"song":"songs"} on Deluxe Tunes · {artistAlbums.length} {artistAlbums.length===1?"album":"albums"} · {artistSingles.length} {artistSingles.length===1?"single":"singles"}</p><div className="artistProfileActions"><button className="primary" onClick={()=>artistPlayQueue[0] && playOrderedQueue && playOrderedQueue(artistPlayQueue, null, artistPlayQueue[0].id)} disabled={!artistPlayQueue.length || !playOrderedQueue}><Play size={16} fill="currentColor"/> Play</button><button className={follows?.includes(artist)?"followBtn active":"followBtn"} onClick={()=>toggleFollow(artist)}>{follows?.includes(artist)?"Following":"Follow"}</button></div></div>
+      <div className="artistProfileCopy">
+        <span>ARTIST</span>
+        <h1>{artist} <BadgeCheck className="verifiedIcon profileVerifiedIcon" size={25} aria-label={data?.verifiedBy ? `Verified by ${data.verifiedBy}` : "Verified by Deluxe Tunes"}/></h1>
+        <div className="verifiedBy"><BadgeCheck size={14}/> Verified by {data?.verifiedBy || "Deluxe Tunes"}</div>
+        {typeof data?.monthlyListeners === "number" && <div className="artistMonthlyListeners">{formatPlayCount(data.monthlyListeners)} monthly listeners</div>}
+        <p>{artistSongs.length} {artistSongs.length===1?"song":"songs"} on Deluxe Tunes · {artistAlbums.length} {artistAlbums.length===1?"album":"albums"} · {artistSingles.length} {artistSingles.length===1?"single":"singles"}</p>
+        <div className="artistProfileActions"><button className="primary" onClick={()=>orderedArtistSongs[0] && playArtistSession?.(orderedArtistSongs)} disabled={!orderedArtistSongs.length || !playArtistSession}><Play size={16} fill="currentColor"/> Play</button><button className={follows?.includes(artist)?"followBtn active":"followBtn"} onClick={()=>toggleFollow(artist)}>{follows?.includes(artist)?"Following":"Follow"}</button></div>
+      </div>
     </div>
     <div className="artistProfileTabs" role="tablist" aria-label={`${artist} catalog`}>
       <button className={profileTab==="songs"?"artistProfileTab active":"artistProfileTab"} onClick={()=>setProfileTab("songs")} role="tab" aria-selected={profileTab==="songs"}>Songs</button>
@@ -3005,7 +3669,7 @@ function ArtistProfile({artist,songs,stats,livePlays,likes,play,like,addToPlayli
       <button className={profileTab==="singles"?"artistProfileTab active":"artistProfileTab"} onClick={()=>setProfileTab("singles")} role="tab" aria-selected={profileTab==="singles"}>Singles</button>
     </div>
     {profileTab==="songs" && <>
-      <Section title="Popular tracks"/>
+      <Section title={`${artistFirstName}'s tracks`}/>
       {popularSongs.length ? <div className="resultList">{popularSongs.map((s,i)=><Row key={s.id} song={s} n={i+1} liked={likes.includes(s.id)} play={play} like={like} addToPlaylist={addToPlaylist} downloaded={downloads.includes(s.id)} downloadSong={downloadSong} stats={stats} livePlays={livePlays}/>)}</div> : <div className="empty"><Music2 size={38}/><b>No songs yet</b><span>Add a song credited to {artist} and it will appear here automatically.</span></div>}
     </>}
     {profileTab==="albums" && <>
@@ -3029,6 +3693,27 @@ function lyricsPalette(songId){
  return {bg:`hsl(${hue.toFixed(3)} 46% 10%)`,accent:`hsl(${hue.toFixed(3)} 72% 27%)`,glow:`hsl(${((hue+42)%360).toFixed(3)} 78% 46%)`};
 }
 
+function StoreItemCard({type,item,price,balance,owned,equipped,isDefault,purchase,equip}){
+ const preview=type==="color"
+  ? <div className="storeColorPreview"><span style={{color:item.value}}>Aa</span><i style={{background:item.value}}/></div>
+  : <img className="storeBackdropPreview" src={item.image} alt={`${item.label} background preview`}/>;
+ return <article className={`storeItemCard${equipped?" equipped":""}`}>
+  {preview}
+  <div className="storeItemDetails"><div><h3>{item.label}</h3><p>{isDefault?"Free default item":type==="color"?"Lyrics text colour":"Lyrics background"}</p></div><b>{price===0?"FREE":`${price} tokens`}</b></div>
+  <div className="storeItemActions">{owned?<><span className="storeItemState">{equipped?"Equipped":isDefault?"Free · owned":"Owned"}</span>{!equipped&&<button type="button" className="ghost" onClick={()=>equip(type,item.id)}>Equip</button>}</>:<button type="button" className="primary small" disabled={balance<price} onClick={()=>purchase(type,item.id)}>{balance<price?`Need ${price-balance} more`:`Buy · ${price} tokens`}</button>}</div>
+ </article>;
+}
+
+function StorePage({balance,ownedColors,ownedBackdrops,textColorId,backdropId,purchase,equip}){
+ return <section className="page storePage">
+  <div className="pageHeading"><span>STORE</span><h1>Make lyrics yours.</h1><p>Purchase and equip lyrics colours and backgrounds with Tune Tokens.</p></div>
+  <div className="storeBalanceCard"><img src="/images/TuneTokens.png" alt=""/><div><span>YOUR TUNE TOKENS</span><b>{balance}</b></div></div>
+  <p className="storeLocalNote">Tune Tokens and purchases are stored on this device; they are not connected to payments or a server.</p>
+  <section className="storeSection"><div className="storeSectionHeading"><div><span>TEXT COLOURS</span><h2>Lyrics text</h2></div><b>5 tokens each <i>·</i> White is free</b></div><div className="storeItemsGrid">{LYRICS_TEXT_COLORS.map(color=><StoreItemCard key={color.id} type="color" item={color} price={color.id==="white"?0:5} balance={balance} owned={ownedColors.includes(color.id)} equipped={textColorId===color.id} isDefault={color.id==="white"} purchase={purchase} equip={equip}/>)}</div></section>
+  <section className="storeSection"><div className="storeSectionHeading"><div><span>LYRICS BACKGROUNDS</span><h2>Set the scene</h2></div><b>15 tokens each <i>·</i> Frostpeak is free</b></div><div className="storeItemsGrid">{LYRICS_BACKDROPS.map(backdrop=><StoreItemCard key={backdrop.id} type="backdrop" item={backdrop} price={backdrop.id==="mount-back"?0:15} balance={balance} owned={ownedBackdrops.includes(backdrop.id)} equipped={backdropId===backdrop.id} isDefault={backdrop.id==="mount-back"} purchase={purchase} equip={equip}/>)}</div></section>
+ </section>;
+}
+
 const SIENNA_SPIRO_SONG_IDS = new Set([
   "sienna-the-visitor",
   "sienna-you-stole-the-show",
@@ -3041,12 +3726,14 @@ const BALLING_SONG_IDS = new Set([
   "balling-vibe-chemistry",
 ]);
 
-function LyricsPage({songs,current,position,play,showLyrics,setShowLyrics,back,backLabel,queueSongs,queueOpen,setQueueOpen,addToQueue,removeFromQueue,moveQueue,focusMode,setFocusMode,next,prev}){
+function LyricsPage({songs,current,position,play,showLyrics,setShowLyrics,backdropId,textColorId,back,backLabel,queueSongs,queueOpen,setQueueOpen,addToQueue,removeFromQueue,moveQueue,focusMode,setFocusMode,next,prev}){
  const song=current||songs[0];
  const lines=LYRICS[song?.id]||[];
  const activeIndex=lines.length?lines.reduce((idx,line,i)=>position>=line[0]?i:idx,-1):-1;
  const activeRef=useRef(null); const touchStart=useRef(null); const longPress=useRef(null);
  const palette=lyricsPalette(song?.id);
+ const selectedBackdrop=LYRICS_BACKDROPS.find(backdrop=>backdrop.id===backdropId)||LYRICS_BACKDROPS[0];
+ const selectedTextColor=LYRICS_TEXT_COLORS.find(color=>color.id===textColorId)||LYRICS_TEXT_COLORS[0];
  const shouldUseSiennaBack = !!song && SIENNA_SPIRO_SONG_IDS.has(song.id);
  const shouldUseRainBack = !!song && RAIN_SONG_IDS.has(song.id);
  const shouldUseBallingBack = !!song && BALLING_SONG_IDS.has(song.id);
@@ -3057,8 +3744,8 @@ function LyricsPage({songs,current,position,play,showLyrics,setShowLyrics,back,b
    backgroundPosition: "center center",
    backgroundRepeat: "no-repeat",
  } : {background:`radial-gradient(circle at 50% 38%, ${palette.glow}44, transparent 34%), radial-gradient(circle at 50% 68%, ${palette.accent}66, transparent 52%), linear-gradient(145deg, ${palette.bg}, #050609)`};
-  const lyricsBackgroundStyle = {
-   backgroundImage: `linear-gradient(180deg, rgba(8,10,14,0.14), rgba(8,10,14,0.8)), url(${assetUrl("/images/mount-back.png")})`,
+ const lyricsBackgroundStyle = {
+   backgroundImage: `linear-gradient(180deg, rgba(8,10,14,0.14), rgba(8,10,14,0.8)), url(${selectedBackdrop.image})`,
    backgroundSize: "cover",
    backgroundPosition: "center center",
    backgroundRepeat: "no-repeat",
@@ -3066,11 +3753,11 @@ function LyricsPage({songs,current,position,play,showLyrics,setShowLyrics,back,b
  useEffect(()=>{if(showLyrics&&activeRef.current)activeRef.current.scrollIntoView({behavior:"smooth",block:"center"})},[activeIndex,showLyrics]);
  const gestureStart=e=>{touchStart.current=e.touches?.[0]?.clientX??e.clientX; longPress.current=setTimeout(()=>{setQueueOpen(true);longPress.current=null},650)};
  const gestureEnd=e=>{if(longPress.current){clearTimeout(longPress.current);longPress.current=null} const end=e.changedTouches?.[0]?.clientX??e.clientX; if(touchStart.current==null)return; const dx=end-touchStart.current; touchStart.current=null; if(Math.abs(dx)>70){dx<0?next():prev()}};
- return <section className={(focusMode?"page lyricsPage focusMode":"page lyricsPage")+(showLyrics?" showingLyrics":"")} style={{"--lyrics-bg":palette.bg,"--lyrics-accent":palette.accent,"--lyrics-glow":palette.glow}}>
+ return <section className={(focusMode?"page lyricsPage focusMode":"page lyricsPage")+(showLyrics?" showingLyrics":"")+(selectedTextColor.id==="black"?" blackLyricsText":"")} style={{"--lyrics-bg":palette.bg,"--lyrics-accent":palette.accent,"--lyrics-glow":palette.glow}}>
   <PageBack onClick={back} label={backLabel}/>
   <div className="nowPlayingTop"><div><span>NOW PLAYING</span><h1>{song?.title}</h1><p>{song?.artist}</p></div></div>
   {!showLyrics?<><div className="nowPlayingStage fullPlayerStage" style={stageArtworkStyle}><div className="nowPlayingGlow"/><div className="nowPlayingCoverWrap" onTouchStart={gestureStart} onTouchEnd={gestureEnd} onMouseDown={gestureStart} onMouseUp={gestureEnd}><Cover song={song} size="heroCover"/></div><div className="nowPlayingInfo"><span>NOW PLAYING</span><h2>{song?.title}</h2><p>{song?.artist}</p></div></div></>:
-  <div className="lyricsOnlyView" style={lyricsBackgroundStyle}><div className="lyricsOnlyHeader"><span>SYNCED LYRICS</span><b>{song?.title}</b><small>{song?.artist}</small></div>{lines.length?<div className="lyricsScroll">{lines.map(([time,text],i)=><button ref={i===activeIndex?activeRef:null} key={`${time}-${i}`} className={i===activeIndex?"lyricLine active":i<activeIndex?"lyricLine past":"lyricLine future"} onClick={()=>{if(document.querySelector("audio"))document.querySelector("audio").currentTime=time}}>{text||" "}</button>)}</div>:<div className="empty lyricsEmpty"><Mic2 size={38}/><b>No synced lyrics for this song</b><span>Synced lyrics are available for selected tracks.</span></div>}</div>}
+  <div className="lyricsOnlyView" style={{...lyricsBackgroundStyle,"--lyrics-text-color":selectedTextColor.value,"--lyrics-text-outline":selectedTextColor.id==="black"?"#ffffffcc":"transparent"}}><div className="lyricsOnlyHeader"><div className="lyricsOnlyMeta"><span>SYNCED LYRICS</span><b>{song?.title}</b><small>{song?.artist}</small></div></div>{lines.length?<div className="lyricsScroll">{lines.map(([time,text],i)=><button ref={i===activeIndex?activeRef:null} key={`${time}-${i}`} className={i===activeIndex?"lyricLine active":i<activeIndex?"lyricLine past":"lyricLine future"} onClick={()=>{if(document.querySelector("audio"))document.querySelector("audio").currentTime=time}}>{text||" "}</button>)}</div>:<div className="empty lyricsEmpty"><Mic2 size={38}/><b>No synced lyrics for this song</b><span>Synced lyrics are available for selected tracks.</span></div>}</div>}
  </section>}
 function QueuePanel({songs,queueSongs,current,likes,like,addToPlaylist,downloads,downloadSong,onClose,removeFromQueue,moveQueue,addToQueue,play,clearQueue}){
   const queuedIds=new Set(queueSongs.map(item=>item.id));
@@ -3084,7 +3771,40 @@ function QueuePanel({songs,queueSongs,current,likes,like,addToPlaylist,downloads
     <div className="queueList queueListModern">{queueSongs.length?<>{queueSongs.map((s,i)=><div className={current?.id===s.id?"queueRow current":"queueRow"} key={s.id}><span className="queuePosition">{i+1}</span><button className="queueTrack" onClick={()=>play(s)}><Cover song={s}/><span><b>{s.title}</b><small>{s.artist}</small></span></button><button className={likes?.includes(s.id)?"heart liked":"heart"} onClick={()=>like?.(s.id)} aria-label="Liked Songs"><Heart size={15} fill={likes?.includes(s.id)?"currentColor":"none"}/></button><button onClick={()=>addToPlaylist?.(s)} title="Add to playlist" aria-label="Add to playlist"><ListPlus size={15}/></button><button className={downloads?.includes(s.id)?"queueDownload active":"queueDownload"} onClick={()=>downloadSong?.(s)} title="Download" aria-label="Download"><Download size={15}/></button><button className="queueMoveUp" onClick={()=>i>0&&moveQueue(i,i-1)} disabled={i===0} title={i===0?"Already first":"Move up"} aria-label={i===0?"Already first":"Move up in queue"}><ArrowLeft size={15}/></button><button onClick={()=>removeFromQueue(s.id)} title="Remove" aria-label="Remove from queue"><X size={15}/></button></div>)}</>:<div className="queueEmpty"><ListOrdered size={30}/><b>Your queue is empty.</b><span>Search above to choose what plays next.</span></div>}</div>
   </div></div>
 }
-function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDiscordConnected,discordAuth,setDiscordAuth,spotifyConnected,setSpotifyConnected,spotifyProfile,setSpotifyProfile,spotifyAuthState,setSpotifyAuthState,matchSongFromSpotify,extractSpotifyTrackFromEntry,onImportSpotifyPlaylists,onImportSpotifyLikedSongs,onImportSpotifyHistory,onImportSpotifyPlaylist,onSignOut,onClose,sleepTimer,setSleepTimer,streak,streakMilestoneInfo,streakHistory,streakCalendar}){
+
+function StreakRewardsModal({streak,rewards,balance,onClaim,claimMessage,onClose}){
+ const activeDays=getActiveStreakDays(streak);
+ const currentStreak=activeDays.length;
+ const dailyRewards=[...(rewards?.daily||[])].sort((a,b)=>b.date.localeCompare(a.date));
+ const milestoneRewards=rewards?.milestones||[];
+ const milestoneByDays=new Map(milestoneRewards.map(reward=>[reward.days,reward]));
+ const availableRewards=[...dailyRewards,...milestoneRewards].filter(reward=>reward.status==="available");
+ const lockedDailyDays=Array.from({length:4},(_,index)=>currentStreak+index+1).filter(day=>day>1);
+ const claim=(ids)=>onClaim(ids);
+ return <div className="streakRewardsOverlay" onClick={onClose}>
+  <section className="streakRewardsModal" role="dialog" aria-modal="true" aria-labelledby="streak-rewards-title" onClick={event=>event.stopPropagation()}>
+   <header className="streakRewardsModalHead"><div><span>DAILY LISTENING REWARDS</span><h2 id="streak-rewards-title">Streak Rewards</h2></div><button type="button" className="iconBtn" onClick={onClose} aria-label="Close rewards"><X size={18}/></button></header>
+   <div className="streakRewardsSummary"><div><small>Current streak</small><b>{currentStreak} days</b></div><div><small>Longest streak</small><b>{streak.longest||0} days</b></div><div><small>Available</small><b>{availableRewards.length}</b></div><div className="streakRewardsTokenTotal"><img src="/images/TuneTokens.png" alt=""/><span>{balance}</span></div></div>
+   {claimMessage&&<div className="streakClaimMessage" role="status">{claimMessage}</div>}
+   <div className="streakRewardsLists">
+    <section className="streakRewardGroup"><div className="streakRewardGroupHead"><div><span>DAILY REWARDS</span><h3>Earned tokens</h3></div><small>3–7 tokens each</small></div>
+     <div className="streakRewardRows">{dailyRewards.map(reward=><article className={`streakRewardRow ${reward.status}`} key={reward.id}><div className="streakRewardMark"><Gift size={15}/></div><div className="streakRewardDescription"><b>Streak Day {reward.streakDay}</b><small>{reward.date}</small></div><b className="streakRewardAmount">+{reward.tokens}</b>{reward.status==="available"?<button type="button" className="streakClaimButton" onClick={()=>claim([reward.id])}>Claim</button>:<span className="streakRewardStatus">Claimed</span>}</article>)}
+      {lockedDailyDays.map(day=><article className="streakRewardRow locked" key={`locked-day-${day}`}><div className="streakRewardMark"><Gift size={15}/></div><div className="streakRewardDescription"><b>Streak Day {day}</b><small>{day===currentStreak+1?"Next streak day":"Keep your streak active"}</small></div><b className="streakRewardAmount">3–7</b><span className="streakRewardStatus">Locked</span></article>)}
+      {!dailyRewards.length&&!currentStreak&&<p className="streakRewardsEmpty">Listen for 20 seconds to start a streak. Your first day starts the streak; daily token rewards begin on day two.</p>}
+     </div>
+    </section>
+    <section className="streakRewardGroup"><div className="streakRewardGroupHead"><div><span>MILESTONE BONUSES</span><h3>Big streak moments</h3></div><small>Claim once per milestone</small></div>
+     <div className="streakRewardRows">{STREAK_REWARD_MILESTONES.map(({days,tokens})=>{const reward=milestoneByDays.get(days);const status=reward?.status||"locked";const description=reward?status==="claimed"?"Already claimed":"Milestone reached":currentStreak>=days?"Unlocking reward":`${Math.max(0,days-currentStreak)} days to go`;return <article className={`streakRewardRow ${status}`} key={`milestone-${days}`}><div className="streakRewardMark"><Sparkles size={15}/></div><div className="streakRewardDescription"><b>{days}-day streak</b><small>{description}</small></div><b className="streakRewardAmount">+{tokens}</b>{status==="available"?<button type="button" className="streakClaimButton" onClick={()=>claim([reward.id])}>Claim</button>:<span className="streakRewardStatus">{status==="claimed"?"Claimed":"Locked"}</span>}</article>})}</div>
+    </section>
+   </div>
+   <footer className="streakRewardsFooter"><span>Rewards are saved on this device.</span><button type="button" className="primary" disabled={!availableRewards.length} onClick={()=>claim(availableRewards.map(reward=>reward.id))}><Gift size={15}/> Claim All ({availableRewards.length})</button></footer>
+  </section>
+ </div>;
+}
+
+function SettingsPanel({account,setAccount,persistLocalAccount=true,theme,setTheme,discordConnected,setDiscordConnected,discordAuth,setDiscordAuth,spotifyConnected,setSpotifyConnected,spotifyProfile,setSpotifyProfile,spotifyAuthState,setSpotifyAuthState,matchSongFromSpotify,extractSpotifyTrackFromEntry,onImportSpotifyPlaylists,onImportSpotifyLikedSongs,onImportSpotifyHistory,onImportSpotifyPlaylist,onSignOut,onClose,sleepTimer,setSleepTimer,streak,streakMilestoneInfo,streakHistory,streakCalendar,rewards,balance,onClaimRewards}){
+  const [rewardsOpen,setRewardsOpen]=useState(false);
+  const [claimMessage,setClaimMessage]=useState("");
   async function connectDiscord() {
     const w = openAuthWindow(`${API_BASE}/api/discord/auth/start`, "deluxeTunesDiscord");
     if (!w) {
@@ -3184,8 +3904,10 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
   function save() {
     const next = { ...account, nickname: nickname.trim() || account.nickname, avatar };
     setAccount(next);
-    localStorage.setItem(STORAGE_KEYS.account, JSON.stringify(next));
-    localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(next));
+    if(persistLocalAccount){
+      localStorage.setItem(STORAGE_KEYS.account, JSON.stringify(next));
+      localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(next));
+    }
   }
 
   async function loadSpotifyPlaylists() {
@@ -3363,6 +4085,12 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
                 ))}
               </div>
             </div>
+            <button type="button" className="streakRewardsButton" onClick={()=>{setRewardsOpen(true);setClaimMessage("")}}>
+              <span className="streakRewardsIcon"><Gift size={17}/></span>
+              <span className="streakRewardsCopy"><b>Streak Rewards</b><small>Claim Tune Tokens for your listening streak</small></span>
+              <span className="streakRewardsBadge">{getAvailableRewardCount(rewards)} Available</span>
+              <ChevronRight size={16}/>
+            </button>
 
             <label className="settingLabel">Nickname<div className="authInput"><UserRound size={15}/><input value={nickname} onChange={(e) => setNickname(e.target.value)}/></div></label>
             <div className="avatarUpload settingUpload">
@@ -3373,6 +4101,8 @@ function SettingsPanel({account,setAccount,theme,setTheme,discordConnected,setDi
             <button className="dangerBtn" onClick={onSignOut}><LogOut size={15}/> Sign out</button>
           </div>
         )}
+
+        {rewardsOpen&&<StreakRewardsModal streak={streak} rewards={rewards} balance={balance} onClaim={ids=>{const earned=onClaimRewards(ids);setClaimMessage(earned?`Success! You earned ${earned} Tune Tokens.`:"Those rewards have already been claimed.");}} claimMessage={claimMessage} onClose={()=>setRewardsOpen(false)}/>}
 
         {tab === "appearance" && (
           <div className="settingsBody">
@@ -3606,6 +4336,4 @@ if (import.meta.env.PROD && window.location.protocol !== "file:" && "serviceWork
   });
 }
 
-const appPath=window.location.pathname.replace(/\/+$/g,"")||"/";
-const isDesktop=window.location.protocol==="file:";
-createRoot(document.getElementById("root")).render(isDesktop||appPath==="/app"?<App/>:<DevelopmentPreview/>);
+createRoot(document.getElementById("root")).render(<App/>);

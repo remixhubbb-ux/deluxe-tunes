@@ -3,6 +3,7 @@ import {
   computeCurrentStreak,
   diffCalendarDays,
   normalizeStreakState,
+  setStreakDays,
   updateStreakForListen,
 } from '../src/streakLogic.js';
 
@@ -44,5 +45,10 @@ const normalized = normalizeStreakState({
 });
 assert.equal(normalized.current, 3, 'missing current state should be rebuilt from the actual day history');
 assert.deepEqual(normalized.days, ['2026-09-01', '2026-09-02', '2026-09-03'], 'duplicate days should be deduplicated');
+
+const customStreak = setStreakDays({current: 2, longest: 8, days: ['2026-09-01', '2026-09-02']}, 4, new Date(2026, 8, 5));
+assert.equal(customStreak.current, 4, 'an admin-set streak should use the selected number of days');
+assert.equal(customStreak.longest, 8, 'an admin-set streak should preserve a longer personal record');
+assert.deepEqual(customStreak.days, ['2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'], 'custom streak dates should be consecutive and end today');
 
 console.log('streak system checks passed');

@@ -82,6 +82,13 @@ const addedSong = {
   artist: 'New Artist',
   artwork: '/images/future-release.png',
 };
+const unrelatedNewSong = {
+  id: 'unrelated-new-song-2026',
+  title: 'Unrelated New Song',
+  artist: 'Other Artist',
+  artwork: '/images/unrelated-new-song.png',
+};
+const allowlistCatalogue = [...existingCatalogue, addedSong, unrelatedNewSong];
 const nextCatalogue = [...existingCatalogue, addedSong];
 const firstNewReleaseService = createReleaseAnnouncementService({
   store,
@@ -89,25 +96,21 @@ const firstNewReleaseService = createReleaseAnnouncementService({
   appLinkBase,
   fetchImpl,
 });
-assert.equal((await firstNewReleaseService.announceCatalog(nextCatalogue)).announced, 1);
-assert.equal((await service.announceCatalog(nextCatalogue)).announced, 0);
+assert.equal((await firstNewReleaseService.announceCatalog(allowlistCatalogue, { announceBaselineIds: [addedSong.id] })).announced, 1);
+assert.equal((await service.announceCatalog(nextCatalogue, { announceBaselineIds: [addedSong.id] })).announced, 0);
 assert.equal(requests.length, 1, 'a repeated sync or backend service restart must not duplicate the announcement');
 assert.equal(requests[0].url, 'https://discord.example/webhook/secret-token', 'the backend should deliver directly to its configured webhook');
-assert.equal(requests[0].body.embeds[0].title, '✨ A fresh release just landed');
-assert.match(requests[0].body.embeds[0].description, /Discover something new, press play/);
-assert.equal(requests[0].body.embeds[0].author.name, 'DELUXE TUNES  •  FRESH DROP');
+assert.equal(requests[0].body.content, '🎵 **NEW SONG ON DELUXE TUNES**');
+assert.equal(requests[0].body.embeds[0].author.name, 'DELUXE TUNES');
+assert.equal(requests[0].body.embeds[0].title, '🎵 Future Release');
+assert.equal(requests[0].body.embeds[0].description, '**New Artist**\n\n[▶ PLAY ON DELUXE TUNES](https://deluxetunesapp.pages.dev/)');
 assert.equal(requests[0].body.embeds[0].image.url, 'https://deluxetunesapp.pages.dev/images/future-release.png');
 assert.equal(requests[0].body.embeds[0].thumbnail.url, 'https://deluxetunesapp.pages.dev/logo-256.png', 'the Deluxe Tunes logo should brand the embed thumbnail');
-assert.deepEqual(requests[0].body.embeds[0].fields, [
-  { name: 'TRACK', value: 'Future Release', inline: true },
-  { name: 'ARTIST', value: 'New Artist', inline: true },
-  { name: 'STATUS', value: '🟢 Available now', inline: true },
-]);
 assert.equal(requests[0].body.embeds[0].url, 'https://deluxetunesapp.pages.dev/');
-assert.match(requests[0].body.embeds[0].description, /\[▶ Listen in Deluxe Tunes\]\(https:\/\/deluxetunesapp\.pages\.dev\/\)/);
+assert.equal(requests[0].body.embeds[0].footer.text, 'NEW RELEASE • ARTWORK • ARTIST • LISTEN');
+assert.equal(requests[0].body.embeds[0].color, 0xb7ff3c);
+assert.equal(requests[0].body.embeds[0].fields, undefined, 'the new release card must use a single hero layout instead of old metadata fields');
 assert.doesNotMatch(JSON.stringify(requests[0].body), /\?song=/, 'announcement payload must not link to a song-specific query URL');
-assert.equal(requests[0].body.embeds[0].footer.text, 'YOUR MUSIC  •  YOUR VIBE  •  ALL IN ONE PLACE');
-assert.match(requests[0].body.content, /A new release has arrived on Deluxe Tunes/);
 assert.deepEqual(requests[0].body.allowed_mentions, { parse: [] });
 assert.equal(JSON.stringify(await service.announceCatalog(nextCatalogue)).includes('secret-token'), false, 'service results must not expose the webhook URL');
 
@@ -125,9 +128,21 @@ assert.equal(backfillPosts.length, 0, 'baseline-only initialization remains sile
 const targetedResult = await backfillService.announceCatalog(previouslyBaselined, { announceBaselineIds: [addedSong.id] });
 assert.equal(targetedResult.announced, 1, 'an explicit ID may be safely promoted from baseline to announced');
 assert.equal(backfillPosts.length, 1);
-assert.equal(backfillPosts[0].embeds[0].title, '✨ A fresh release just landed');
+assert.equal(backfillPosts[0].embeds[0].title, '🎵 Future Release');
+assert.equal(backfillPosts[0].content, '🎵 **NEW SONG ON DELUXE TUNES**');
 assert.equal((await backfillService.announceCatalog(previouslyBaselined, { announceBaselineIds: [addedSong.id] })).announced, 0);
 assert.equal(backfillPosts.length, 1, 'targeted baseline promotion must remain one-time across future scans');
+
+const allowlistStore = createMemoryStore();
+await allowlistStore.initializeBaseline(existingCatalogue);
+const allowlistService = createReleaseAnnouncementService({
+  store: allowlistStore,
+  webhookUrl: 'https://discord.example/webhook/allowlist',
+  appLinkBase,
+  fetchImpl: async () => ({ ok: true, status: 204 }),
+});
+const allowlistResult = await allowlistService.announceCatalog(allowlistCatalogue, { announceBaselineIds: [addedSong.id] });
+assert.equal(allowlistResult.announced, 1, 'an explicit allowlist must announce only the requested song');
 
 const noArtwork = normalizeReleaseSong({ id: 'plain-track', title: 'Plain Track', artist: 'Artist' }, appLinkBase);
 assert.equal(noArtwork.artwork, null);

@@ -81,6 +81,22 @@ export function normalizeStreakState(raw = {}) {
   };
 }
 
+export function setStreakDays(rawState = {}, streakDays, today = new Date()) {
+  const current = normalizeStreakState(rawState);
+  const days = Math.max(1, Math.min(100_000, Math.floor(Number(streakDays) || 1)));
+  const todayKey = getLocalDateKey(today);
+  const activeDays = Array.from({length: days}, (_, index) =>
+    addCalendarDays(todayKey, index - days + 1)
+  );
+  return {
+    ...current,
+    current: days,
+    longest: Math.max(current.longest, days),
+    lastActiveDay: todayKey,
+    days: activeDays,
+  };
+}
+
 export function getStreakMilestoneInfo(current = 0) {
   const nextMilestone = STREAK_MILESTONES.find((value) => value > current);
   if (!nextMilestone) {

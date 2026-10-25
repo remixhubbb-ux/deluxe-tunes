@@ -1,66 +1,7 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {CheckCircle2, Play, Radio, Settings, ShieldAlert, ShieldCheck, Trash2, UserPlus, UserRound, UsersRound, X} from "lucide-react";
 import {API_BASE, resolveApiBase} from "./apiBase.js";
 import {resolveAssetUrl} from "./appLogic.js";
-
-async function legacyPasswordHash(value){
-  if(!window.crypto?.subtle)return "";
-  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,"0")).join("");
-}
-
-async function verifyDeviceAccountPassword(account,password){
-  const stored=account?.passwordHash;
-  if(typeof stored!=="string")return false;
-  if(/^\$2[aby]\$/.test(stored)){
-    const {default:bcrypt}=await import("bcryptjs");
-    return bcrypt.compare(password,stored);
-  }
-  return /^[a-f0-9]{64}$/i.test(stored)&&(await legacyPasswordHash(password))===stored;
-}
-
-async function connectDeviceAccountToServer(account,devicePassword,username,serverPassword){
-  const email=String(account.email||"").trim().toLowerCase();
-  if(!email)throw new Error("This device account has no email address to connect.");
-  const passwords=[devicePassword];
-  if(serverPassword&&serverPassword!==devicePassword)passwords.push(serverPassword);
-  let loginError;
-  for(const password of passwords){
-    try{
-      const result=await friendsApi("/api/auth/login",{method:"POST",body:{identifier:email,password}});
-      return result.user;
-    }catch(error){
-      if(error.status!==401)throw error;
-      loginError=error;
-    }
-  }
-  const normalizedUsername=username.trim().toLowerCase();
-  if(!/^[a-z0-9_]{3,20}$/.test(normalizedUsername)){
-    throw new Error("Choose a unique username to create the server account.");
-  }
-  const registrationPassword=serverPassword||devicePassword;
-  const passwordLength=new TextEncoder().encode(registrationPassword).length;
-  if(passwordLength<12||passwordLength>72){
-    throw new Error("Set a server password between 12 and 72 bytes to connect this older account.");
-  }
-  try{
-    const result=await friendsApi("/api/auth/register",{
-      method:"POST",
-      body:{
-        email,
-        username:normalizedUsername,
-        displayName:account.nickname||normalizedUsername,
-        password:registrationPassword,
-      },
-    });
-    return result.user;
-  }catch(error){
-    if(error.status===409&&loginError){
-      throw new Error("A server account already uses this email or username. Sign in with that account's server password to connect.");
-    }
-    throw error;
-  }
-}
 
 const runtimeFriendsApiBases=typeof window!=="undefined"?[
   window.__DT_FRIENDS_API_BASE__,
@@ -90,7 +31,8 @@ export async function friendsApi(path,options={}){
     });
   }catch(fetchError){
     if(fetchError.name==="AbortError")throw fetchError;
-    const error=new Error(`Could not reach the Friends API at ${FRIENDS_API_BASE}. Check that the API server is running, its allowed frontend origins include this site, and cross-site cookies are enabled.`);
+    const frontendOrigin=typeof window!=="undefined"?window.location.origin:"this app";
+    const error=new Error(`Could not reach the Friends API at ${FRIENDS_API_BASE} from ${frontendOrigin}. Check your connection and confirm this exact frontend origin is allowed by the API. If the API is reachable but sign-in is not remembered, check browser cookie support and site-data settings.`);
     error.code="FRIENDS_API_UNREACHABLE";
     throw error;
   }
@@ -111,41 +53,19 @@ export async function friendsApi(path,options={}){
 }
 
 
-function FriendsAccountLinkForm({localAccount,onAuthenticated}){
-  const [username,setUsername]=useState("");
-  const [password,setPassword]=useState("");
-  const [newServerPassword,setNewServerPassword]=useState("");
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState("");
-  async function submit(event){
-    event.preventDefault();
-    setError("");
-    setBusy(true);
-    try{
-      if(!await verifyDeviceAccountPassword(localAccount,password)){
-        throw new Error("That password does not match this device account. Accounts signed in only with Google cannot be linked using local profile data.");
-      }
-      onAuthenticated(await connectDeviceAccountToServer(localAccount,password,username,newServerPassword));
-    }catch(authError){
-      setError(authError.message||"The account could not be connected.");
-    }finally{
-      setBusy(false);
-    }
-  }
-  return <form className="friendsAccountForm" onSubmit={submit}>
-    <label><span>Verify this device account password</span><input type="password" value={password} onChange={event=>setPassword(event.target.value)} maxLength={72} autoComplete="current-password" required/></label>
-    <label><span>Unique Friends username if creating an account</span><input value={username} onChange={event=>setUsername(event.target.value.toLowerCase())} pattern="[A-Za-z0-9_]{3,20}" minLength={3} maxLength={20} autoComplete="username"/></label>
-    <label><span>Server password if different or under 12 characters</span><input type="password" value={newServerPassword} onChange={event=>setNewServerPassword(event.target.value)} minLength={12} maxLength={72} autoComplete="new-password"/></label>
-    <p className="accountVerificationNotice">One-time setup only. This creates or signs into a server identity using your account email; it does not upload or merge local playlists, settings, Tune Tokens, streaks, or other app data. Your device password is unchanged.</p>
-    {error&&<div className="friendsFeedback error" role="alert">{error}</div>}
-    <button className="primary" disabled={busy}>{busy?"Connecting…":"Connect account to Friends"}</button>
-  </form>;
-}
-
-export default function FriendsPage({localAccount,songs,play,currentSong,playing,currentStreak}){
-  const [user,setUser]=useState(null);
-  const [authReady,setAuthReady]=useState(false);
-  const [authError,setAuthError]=useState("");
+export default function FriendsPage({
+  user: authenticatedUser,
+  authReady: appAuthReady,
+  onAuthenticated,
+  onUserUpdated,
+  songs,
+  play,
+  currentSong,
+  playing,
+  currentStreak,
+}){
+const [user,setUser]=useState(authenticatedUser || null);
+const [authReady,setAuthReady]=useState(Boolean(appAuthReady));
   const [tab,setTab]=useState("friends");
   const [friends,setFriends]=useState([]);
   const [requests,setRequests]=useState([]);
@@ -155,43 +75,71 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
   const [searchAttempted,setSearchAttempted]=useState(false);
   const [selectedProfile,setSelectedProfile]=useState(null);
   const [profileSettingsOpen,setProfileSettingsOpen]=useState(false);
-  const [linkDialogOpen,setLinkDialogOpen]=useState(false);
+  const guestProvisionRequest=useRef(null);
+  const [guestProvisioning,setGuestProvisioning]=useState(false);
+  const [guestProvisionError,setGuestProvisionError]=useState("");
+  const [guestRetryCount,setGuestRetryCount]=useState(0);
   const [profileDraft,setProfileDraft]=useState({username:"",displayName:"",bio:"",shareListening:false,shareStreak:false,shareOnlineStatus:false});
   const [loading,setLoading]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
+  useEffect(()=>{
+    setUser(authenticatedUser || null);
+  },[authenticatedUser]);
+
+  useEffect(()=>{
+    setAuthReady(Boolean(appAuthReady));
+  },[appAuthReady]);
+
   function handleRequestError(requestError){
     if(requestError.status===401){
+      guestProvisionRequest.current=null;
       setUser(null);
-      setAuthError("Your secure Friends session expired. Connect your device account again to continue.");
       return true;
     }
     return false;
   }
+
   function handleUserUpdated(nextUser){
     setUser(nextUser);
-    setAuthError("");
+    if(onUserUpdated)onUserUpdated(nextUser);
   }
-
+  function handleAuthenticatedUser(nextUser){
+    setUser(nextUser);
+    if(onUserUpdated)onUserUpdated(nextUser);
+    if(onAuthenticated)onAuthenticated(nextUser);
+  }
   useEffect(()=>{
+    if(!appAuthReady||user?.id)return undefined;
     let active=true;
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),10_000);
-    friendsApi("/api/auth/me",{signal:controller.signal}).then(result=>{
-      if(active)handleUserUpdated(result.user);
-    }).catch(sessionError=>{
+    if(!guestProvisionRequest.current){
+      guestProvisionRequest.current=friendsApi("/api/auth/guest",{method:"POST"});
+    }
+    const request=guestProvisionRequest.current;
+    setGuestProvisioning(true);
+    setGuestProvisionError("");
+    request.then(result=>{
+      if(active)handleAuthenticatedUser(result.user);
+    }).catch(provisionError=>{
+      guestProvisionRequest.current=null;
       if(!active)return;
-      if(sessionError.status!==401&&sessionError.name!=="AbortError"){
-        setAuthError(sessionError.message||"The Friends account session could not be checked.");
+      if(provisionError.code==="FRIENDS_API_UNREACHABLE"){
+        setGuestProvisionError("Friends couldn't be reached. Check your connection and try again.");
+      }else if(provisionError.status===401||provisionError.status===404){
+        setGuestProvisionError("The Friends server needs an update before guest profiles can connect.");
+      }else if(provisionError.status===503){
+        setGuestProvisionError("Friends is temporarily unavailable. Please try again later.");
+      }else if(provisionError.status===429){
+        setGuestProvisionError("Too many profile attempts. Please wait a little and try again.");
+      }else{
+        setGuestProvisionError("Couldn't create your Friends profile. Please try again.");
       }
     }).finally(()=>{
-      clearTimeout(timeout);
-      if(active)setAuthReady(true);
+      if(active)setGuestProvisioning(false);
     });
-    return()=>{active=false;clearTimeout(timeout);controller.abort()};
-  },[]);
-
+    return()=>{active=false};
+  },[appAuthReady,user?.id,guestRetryCount]);
   useEffect(()=>{
     if(!user?.id)return undefined;
     const sendPresence=()=>{
@@ -216,7 +164,7 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
       friendsApi("/api/friends"),
       friendsApi("/api/friends/requests"),
       friendsApi("/api/friends/blocks"),
-      friendsApi("/api/auth/me"),
+      friendsApi("/api/friends/profile"),
     ]);
     setFriends(friendData.friends);
     setRequests(requestData.requests);
@@ -233,7 +181,7 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
       friendsApi("/api/friends"),
       friendsApi("/api/friends/requests"),
       friendsApi("/api/friends/blocks"),
-      friendsApi("/api/auth/me"),
+      friendsApi("/api/friends/profile"),
     ]).then(([friendData,requestData,blockData,profileData])=>{
       if(!active)return;
       setFriends(friendData.friends);
@@ -288,7 +236,7 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
     setError("");
     setMessage("");
     if(!user?.id){
-      setError("Connect a secure Deluxe Tunes server account before searching for friends.");
+      setError("Your private Friends profile is still being prepared. Please try again in a moment.");
       return;
     }
     if(!user.username){
@@ -396,7 +344,6 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
       <label><input type="checkbox" checked={profileDraft.shareStreak} onChange={event=>setProfileDraft(value=>({...value,shareStreak:event.target.checked}))}/><span><b>Share my current streak</b><small>Friends can see your current active streak.</small></span></label>
       <label><input type="checkbox" checked={profileDraft.shareOnlineStatus} onChange={event=>setProfileDraft(value=>({...value,shareOnlineStatus:event.target.checked}))}/><span><b>Share my online status</b><small>Friends can see when you are currently active in Deluxe Tunes.</small></span></label>
     </div>
-    {localAccount?.nickname&&localAccount.nickname!==profileDraft.displayName&&<button className="friendsTextButton" type="button" onClick={()=>setProfileDraft(value=>({...value,displayName:localAccount.nickname}))}>Use this device’s nickname ({localAccount.nickname})</button>}
     <button className="primary" disabled={busy}><CheckCircle2 size={15}/>{busy?"Saving…":profileIncomplete?"Create Friends profile":"Save profile"}</button>
     {profileIncomplete&&<p className="friendsPrivacyNote">Only your chosen display name, username, avatar, and opted-in activity or streak are visible. Your email is never shown.</p>}
   </form>;
@@ -434,7 +381,7 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
       {user&&<div className="friendsHeadingIdentity">{user.avatar?<img src={user.avatar} alt=""/>:<span>{user.displayName.slice(0,1).toUpperCase()}</span>}<div><b>{user.displayName}</b><small>@{user.username||"profile setup"}</small></div><button type="button" className="ghost friendsIconAction" onClick={()=>setProfileSettingsOpen(true)} aria-label="Edit profile and privacy"><Settings size={15}/></button></div>}
     </div>
 
-    {(authError||error)&&<div className="friendsFeedback error" role="alert">{error||authError}</div>}
+    {error&&<div className="friendsFeedback error" role="alert">{error}</div>}
     {message&&<div className="friendsFeedback success" role="status">{message}</div>}
 
     <div className="friendsColumns">
@@ -449,10 +396,10 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
           <button className="primary friendsSendButton" disabled={busy||!user?.id||profileIncomplete}><UserPlus size={16}/>{busy?"Sending…":"Send Request"}</button>
         </form>
         {!authReady&&<p className="friendsAccessNotice"><span className="friendsLoadingDot"/>Checking your Deluxe Tunes session…</p>}
-        {authReady&&!user&&<div className="friendsAccessNotice">
-          <ShieldAlert size={17}/>
-          <span>{localAccount?"This device account needs a one-time secure server connection before Friends can load.":"Sign in to your Deluxe Tunes account to use Friends."}</span>
-          {localAccount&&<button type="button" className="friendsTextButton" onClick={()=>setLinkDialogOpen(true)}>Connect this device account</button>}
+        {authReady&&!user&&<div className={`friendsAccessNotice${guestProvisionError?" friendsAccessError":""}`} role={guestProvisionError?"alert":"status"}>
+          {!guestProvisionError&&<ShieldCheck size={17}/>}
+          <span>{guestProvisioning?"Creating your private Friends profile…":guestProvisionError||"Friends will be ready in a moment."}</span>
+          {guestProvisionError&&<button type="button" className="friendsTextButton" onClick={()=>setGuestRetryCount(count=>count+1)}>Try again</button>}
         </div>}
         {profileIncomplete&&<div className="friendsAccessNotice"><UserRound size={17}/><span>Finish your Friends profile before sending requests.</span><button type="button" className="friendsTextButton" onClick={()=>setProfileSettingsOpen(true)}>Set up profile</button></div>}
         {searchResults.map(result=><article className="friendsSearchResult" key={result.id}>
@@ -473,7 +420,7 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
           <button type="button" role="tab" aria-selected={tab==="blocked"} className={tab==="blocked"?"active":""} onClick={()=>setTab("blocked")}>Blocked <span>{blocks.length}</span></button>
         </div>
         {tab==="friends"&&<div className="friendsDirectoryList">
-          {loading?<div className="friendsEmpty"><span className="friendsLoadingDot"/>Loading your friends…</div>:!user?.id?<div className="friendsEmpty"><UsersRound size={24}/><b>Friends appear here after sign-in</b><span>Connect a secure Deluxe Tunes account to load real friend profiles.</span></div>:friends.length?friends.map(renderFriend):<div className="friendsEmpty"><UsersRound size={25}/><b>Your circle starts here</b><span>You don’t have any friends yet. Search for someone by their username to send a request.</span></div>}
+          {loading?<div className="friendsEmpty"><span className="friendsLoadingDot"/>Loading your friends…</div>:!user?.id?<div className="friendsEmpty"><UsersRound size={24}/><b>Preparing your Friends profile</b><span>Your private guest profile is created automatically—no sign-in needed.</span></div>:friends.length?friends.map(renderFriend):<div className="friendsEmpty"><UsersRound size={25}/><b>Your circle starts here</b><span>You don’t have any friends yet. Search for someone by their username to send a request.</span></div>}
         </div>}
         {tab==="requests"&&<div className="friendsDirectoryList">
           {loading?<div className="friendsEmpty">Loading friend requests…</div>:requests.length?requests.map(request=><article className="friendsRequestCard" key={request.id}>
@@ -493,14 +440,6 @@ export default function FriendsPage({localAccount,songs,play,currentSong,playing
         <button type="button" className="friendsModalClose" onClick={()=>setProfileSettingsOpen(false)} aria-label="Close profile settings"><X size={18}/></button>
         <span className="eyebrow">YOUR PROFILE & PRIVACY</span><h2 id="friends-settings-title">{profileIncomplete?"Set up your profile":"Profile and privacy"}</h2>
         {user&&profileForm}
-      </section>
-    </div>}
-    {linkDialogOpen&&authReady&&localAccount&&!user&&<div className="friendsModalBackdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setLinkDialogOpen(false)}}>
-      <section className="friendsProfileModal friendsLinkModal" role="dialog" aria-modal="true" aria-labelledby="friends-link-title">
-        <button type="button" className="friendsModalClose" onClick={()=>setLinkDialogOpen(false)} aria-label="Close account connection"><X size={18}/></button>
-        <span className="eyebrow">ONE-TIME SECURE SETUP</span><h2 id="friends-link-title">Connect this device account</h2>
-        <p className="friendsLinkCopy">A local sign-in alone cannot authenticate Friends to the server. Verify the existing device password once to create or sign into its server account. Your local music data is not uploaded or merged.</p>
-        <FriendsAccountLinkForm localAccount={localAccount} onAuthenticated={nextUser=>{handleUserUpdated(nextUser);setLinkDialogOpen(false);}}/>
       </section>
     </div>}
     {selectedProfile&&<div className="friendsModalBackdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSelectedProfile(null)}}>

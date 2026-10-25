@@ -5,7 +5,6 @@ android.incomplete-backup/
 .env
 .env.*
 !.env.example
-!.env.production
 
 # Secrets and local credentials
 *.pem
@@ -38,3 +37,13 @@ android/app/build/
 dist/
 android.incomplete-backup/
 ios/App/App/public/
+
+# Block generated electron bundles and installer setups
+release-*/
+release-windows-*/
+downloads/
+*.exe
+*.blockmap
+*.yml
+*.yaml
+*.asar

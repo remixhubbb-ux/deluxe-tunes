@@ -65,23 +65,20 @@ export function normalizeReleaseSong(song = {}, appLinkBase = DEFAULT_APP_LINK_B
 
 export function buildReleaseWebhookPayload(song) {
   const escapeMarkdown = value => String(value).replace(/([\\_*`~|>])/g, '\\$1');
+  const title = escapeMarkdown(song.title);
+  const artist = escapeMarkdown(song.artist);
   const embed = {
-    author: { name: 'DELUXE TUNES  •  FRESH DROP' },
-    title: '✨ A fresh release just landed',
-    description: `A fresh track has just landed in the Deluxe Tunes catalogue.\n\nDiscover something new, press play, and make it part of your rotation.\n\n[▶ Listen in Deluxe Tunes](${song.appUrl})`,
-    fields: [
-      { name: 'TRACK', value: escapeMarkdown(song.title), inline: true },
-      { name: 'ARTIST', value: escapeMarkdown(song.artist), inline: true },
-      { name: 'STATUS', value: '🟢 Available now', inline: true },
-    ],
+    author: { name: 'DELUXE TUNES' },
+    title: `🎵 ${title}`,
+    description: `**${artist}**\n\n[▶ PLAY ON DELUXE TUNES](${song.appUrl})`,
     url: song.appUrl,
     color: 0xb7ff3c,
-    footer: { text: 'YOUR MUSIC  •  YOUR VIBE  •  ALL IN ONE PLACE' },
+    footer: { text: 'NEW RELEASE • ARTWORK • ARTIST • LISTEN' },
   };
   if (song.artwork) embed.image = { url: song.artwork };
   embed.thumbnail = { url: new URL('/logo-256.png', song.appUrl).toString() };
   return {
-    content: '✨ **A new release has arrived on Deluxe Tunes!**',
+    content: '🎵 **NEW SONG ON DELUXE TUNES**',
     embeds: [embed],
     allowed_mentions: { parse: [] },
   };
@@ -193,11 +190,14 @@ export function createReleaseAnnouncementService({
       const forcedBaselineIds = new Set((Array.isArray(announceBaselineIds) ? announceBaselineIds : [])
         .map(id => String(id).trim())
         .filter(id => /^[a-z0-9][a-z0-9._-]{0,119}$/i.test(id)));
+      const selectedSongs = forcedBaselineIds.size
+        ? songs.filter(song => forcedBaselineIds.has(song.id))
+        : songs;
       const baseline = await store.initializeBaseline(songs, forcedBaselineIds);
       if (baseline && !forcedBaselineIds.size) return { configured: true, baseline: true, announced: 0 };
 
       let announced = 0;
-      for (const song of songs) {
+      for (const song of selectedSongs) {
         const claim = forcedBaselineIds.has(song.id)
           ? (await store.claimBaseline?.(song, now()) || await store.claim(song, now()))
           : baseline ? false : await store.claim(song, now());

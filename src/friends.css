@@ -120,6 +120,7 @@
 .friendsPersonActions .friendsIconAction{border:1px solid #303947;border-radius:9px;background:#151b25;color:#a5afbe}
 .friendsPersonActions .friendsIconAction:hover{border-color:#b7ff3c66;color:var(--lime)}
 .friendsAccessNotice{display:flex;align-items:center;gap:9px;margin-top:19px;padding:12px;border:1px solid #343b49;border-radius:12px;background:#101620;color:#a9b2c0;font-size:11px;line-height:1.5}
+.friendsAccessNotice.friendsAccessError{margin-top:10px;padding:0;border:0;background:none;color:#a9b2c0}
 .friendsAccessNotice>svg{flex:none;color:#bac4d3}
 .friendsAccessNotice .friendsTextButton{flex:none}
 .friendsSearchResult{display:flex;align-items:center;gap:11px;margin-top:18px;padding:12px;border:1px solid #283140;border-radius:14px;background:#101620}

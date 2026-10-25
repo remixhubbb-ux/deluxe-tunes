@@ -12,6 +12,7 @@ export const FRIENDS_SCHEMA_SQL = `
     bio TEXT NOT NULL DEFAULT '',
     avatar_url TEXT,
     password_hash TEXT,
+    is_guest BOOLEAN NOT NULL DEFAULT FALSE,
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     share_listening BOOLEAN NOT NULL DEFAULT FALSE,
     share_streak BOOLEAN NOT NULL DEFAULT FALSE,
@@ -22,6 +23,7 @@ export const FRIENDS_SCHEMA_SQL = `
   );
   ALTER TABLE app_users ALTER COLUMN google_sub DROP NOT NULL;
   ALTER TABLE app_users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+  ALTER TABLE app_users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE;
   ALTER TABLE app_users ADD COLUMN IF NOT EXISTS username_tag TEXT;
   ALTER TABLE app_users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
   ALTER TABLE app_users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
@@ -40,6 +42,14 @@ export const FRIENDS_SCHEMA_SQL = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS app_auth_sessions_user_idx ON app_auth_sessions(user_id);
+  CREATE TABLE IF NOT EXISTS app_password_reset_tokens (
+    token_hash TEXT PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS app_password_reset_tokens_user_idx
+    ON app_password_reset_tokens(user_id);
   CREATE TABLE IF NOT EXISTS app_auth_rate_limits (
     key_hash TEXT PRIMARY KEY,
     attempts INTEGER NOT NULL DEFAULT 0,
@@ -79,9 +89,22 @@ export const FRIENDS_SCHEMA_SQL = `
     playing BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS admin_token_grants (
+    id UUID PRIMARY KEY,
+    recipient_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    admin_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    token_amount INTEGER NOT NULL CHECK (token_amount = 5000),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS admin_token_grants_recipient_idx
+    ON admin_token_grants(recipient_id, created_at);
 `;
 
 export const FRIENDS_DESKTOP_ORIGIN = 'deluxetunes://app';
+<<<<<<< Updated upstream
+=======
+export const FRIENDS_NATIVE_ORIGINS = ['capacitor://localhost', 'https://localhost'];
+>>>>>>> Stashed changes
 
 export function getFriendsAllowedOrigins({production, appOrigin, allowedOrigins} = {}) {
   const configuredOrigins = String(allowedOrigins || '')
@@ -91,6 +114,10 @@ export function getFriendsAllowedOrigins({production, appOrigin, allowedOrigins}
   return new Set([
     ...(configuredOrigins.length ? configuredOrigins : ['https://deluxetunesapp.pages.dev']),
     FRIENDS_DESKTOP_ORIGIN,
+<<<<<<< Updated upstream
+=======
+    ...FRIENDS_NATIVE_ORIGINS,
+>>>>>>> Stashed changes
     ...(appOrigin && (!production || appOrigin.startsWith('https://')) ? [appOrigin] : []),
     ...(!production ? ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'] : []),
   ]);
@@ -131,8 +158,27 @@ export function getFriendsCookieOptions(production) {
     'Path=/',
     'HttpOnly',
     'SameSite=' + (production ? 'None' : 'Lax'),
-    ...(production ? ['Secure'] : []),
+    ...(production ? ['Secure', 'Partitioned'] : []),
   ].join('; ');
+}
+
+export function isAccountRecordAdmin(user, configuredEmails = process.env.ACCOUNT_RECORD_ADMIN_EMAILS) {
+  if (!user || user.isGuest || typeof user.email !== 'string') return false;
+  const allowedEmails = new Set(
+    String(configuredEmails || '')
+      .split(',')
+      .map(email => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  return allowedEmails.has(user.email.trim().toLowerCase());
+}
+
+export function isValidAdminPanelCode(provided, configured = process.env.ADMIN_PANEL_ACCESS_CODE) {
+  if (typeof provided !== 'string' || typeof configured !== 'string') return false;
+  const candidate = provided.trim();
+  const expected = configured.trim();
+  if (!/^\d{8}$/.test(candidate) || !/^\d{8}$/.test(expected)) return false;
+  return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(expected));
 }
 
 export class FriendsService {
@@ -181,15 +227,46 @@ export class FriendsService {
     }
   }
 
-  async createSession(userId) {
+  async createSession(userId, lifetimeDays = 30) {
     const token = crypto.randomBytes(32).toString('base64url');
     await this.pool.query('DELETE FROM app_auth_sessions WHERE expires_at <= NOW()');
     await this.pool.query(
       `INSERT INTO app_auth_sessions (token_hash, user_id, expires_at)
-       VALUES ($1, $2, NOW() + INTERVAL '30 days')`,
-      [hash(token), userId]
+       VALUES ($1, $2, NOW() + ($3 * INTERVAL '1 day'))`,
+      [hash(token), userId, lifetimeDays]
     );
     return token;
+  }
+
+  async createGuest(ipAddress) {
+    await this.enforceAuthRateLimit([{value: `guest:ip:${ipAddress}`, limit: 20}]);
+    let result;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const id = crypto.randomUUID();
+      const username = `listener_${crypto.randomBytes(5).toString('hex')}`;
+      const usernameTag = String(crypto.randomInt(0, 10_000)).padStart(4, '0');
+      const email = `guest-${id}@guest.deluxetunes.invalid`;
+      try {
+        result = await this.pool.query(
+          `INSERT INTO app_users
+             (id, email, username, username_tag, display_name, is_guest, email_verified)
+           VALUES ($1, $2, $3, $4, $5, TRUE, FALSE)
+           RETURNING id, email, username, username_tag, display_name, bio, avatar_url, email_verified,
+                     is_guest, share_listening, share_streak, share_online_status, current_streak`,
+          [id, email, username, usernameTag, `Listener ${username.slice(-4)}`]
+        );
+        break;
+      } catch (error) {
+        if (error?.code !== '23505') throw error;
+      }
+    }
+    if (!result) {
+      const error = new Error('Could not create a guest Friends profile. Please try again.');
+      error.status = 503;
+      throw error;
+    }
+    const user = this.publicUser(result.rows[0]);
+    return {user, token: await this.createSession(user.id, 365)};
   }
 
   async register({email, username, displayName, password}, ipAddress) {
@@ -231,7 +308,7 @@ export class FriendsService {
              (id, email, username, username_tag, display_name, password_hash, email_verified)
            VALUES ($1, $2, $3, $4, $5, $6, FALSE)
            RETURNING id, email, username, username_tag, display_name, bio, avatar_url, email_verified,
-                     share_listening, share_streak, share_online_status, current_streak`,
+                     is_guest, share_listening, share_streak, share_online_status, current_streak`,
           [crypto.randomUUID(), normalizedEmail, parsedUsername.name, usernameTag, name, passwordHash]
         );
         break;
@@ -267,7 +344,7 @@ export class FriendsService {
       {value: `login:identity:${normalizedIdentifier}`, limit: 10},
     ]);
     const result = await this.pool.query(
-      `SELECT id, email, username, username_tag, display_name, bio, avatar_url, email_verified, password_hash,
+      `SELECT id, email, username, username_tag, display_name, bio, avatar_url, email_verified, password_hash, is_guest,
               share_listening, share_streak, share_online_status, current_streak
        FROM app_users
        WHERE LOWER(email) = $1 OR (LOWER(username) = $2 AND username_tag = $3)
@@ -285,10 +362,114 @@ export class FriendsService {
     return {user, token: await this.createSession(user.id)};
   }
 
+  async requestPasswordReset(email, ipAddress) {
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!safeEmail(normalizedEmail)) {
+      const error = new Error('Enter a valid email address.');
+      error.status = 400;
+      throw error;
+    }
+
+    await this.enforceAuthRateLimit([
+      {value: `password-reset:ip:${ipAddress}`, limit: 10},
+      {value: `password-reset:email:${normalizedEmail}`, limit: 3},
+    ]);
+
+    const account = await this.pool.query(
+      `SELECT id FROM app_users
+       WHERE LOWER(email) = $1 AND is_guest = FALSE
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+    if (!account.rowCount) return null;
+
+    const token = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = hash(token);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lockedAccount = await client.query(
+        'SELECT id FROM app_users WHERE id = $1 FOR UPDATE',
+        [account.rows[0].id]
+      );
+      if (!lockedAccount.rowCount) {
+        await client.query('COMMIT');
+        return null;
+      }
+      await client.query('DELETE FROM app_password_reset_tokens WHERE user_id = $1', [account.rows[0].id]);
+      await client.query(
+        `INSERT INTO app_password_reset_tokens (token_hash, user_id, expires_at)
+         VALUES ($1, $2, NOW() + INTERVAL '30 minutes')`,
+        [tokenHash, account.rows[0].id]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return {email: normalizedEmail, token};
+  }
+
+  async resetPassword(token, password, ipAddress = 'unknown') {
+    await this.enforceAuthRateLimit([
+      {value: `password-reset-confirm:ip:${ipAddress}`, limit: 20},
+    ]);
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      const error = new Error('This password-reset link is invalid or has expired.');
+      error.status = 400;
+      throw error;
+    }
+    if (!safePassword(password)) {
+      const error = new Error('Use a password that is at least 12 characters and no more than 72 bytes.');
+      error.status = 400;
+      throw error;
+    }
+
+    const tokenHash = hash(token);
+    const passwordHash = await bcrypt.hash(password, 12);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const reset = await client.query(
+        `SELECT user_id FROM app_password_reset_tokens
+         WHERE token_hash = $1 AND expires_at > NOW()
+         FOR UPDATE`,
+        [tokenHash]
+      );
+      if (!reset.rowCount) {
+        const error = new Error('This password-reset link is invalid or has expired.');
+        error.status = 400;
+        throw error;
+      }
+
+      const userId = reset.rows[0].user_id;
+      const updated = await client.query(
+        'UPDATE app_users SET password_hash = $2 WHERE id = $1 AND is_guest = FALSE',
+        [userId, passwordHash]
+      );
+      if (!updated.rowCount) {
+        const error = new Error('This password-reset link is invalid or has expired.');
+        error.status = 400;
+        throw error;
+      }
+      await client.query('DELETE FROM app_password_reset_tokens WHERE token_hash = $1', [tokenHash]);
+      await client.query('DELETE FROM app_auth_sessions WHERE user_id = $1', [userId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return {ok: true};
+  }
+
   async authenticate(token) {
     if (!token || token.length > 200) return null;
     const result = await this.pool.query(
-      `SELECT u.id, u.email, u.username, u.username_tag, u.display_name, u.bio, u.avatar_url, u.email_verified, u.share_listening,
+      `SELECT u.id, u.email, u.username, u.username_tag, u.display_name, u.bio, u.avatar_url, u.email_verified, u.is_guest, u.share_listening,
               u.share_streak, u.share_online_status, u.current_streak
        FROM app_auth_sessions s
        JOIN app_users u ON u.id = s.user_id
@@ -312,23 +493,111 @@ export class FriendsService {
       displayName: row.display_name,
       bio: row.bio || '',
       avatar: row.avatar_url || '',
+      isGuest: Boolean(row.is_guest),
       emailVerified: Boolean(row.email_verified),
       shareListening: Boolean(row.share_listening),
       shareStreak: Boolean(row.share_streak),
       shareOnlineStatus: Boolean(row.share_online_status),
-      currentStreak: row.share_streak ? Number(row.current_streak) || 0 : null,
+      currentStreak: Number(row.current_streak) || 0,
       needsProfile: !row.username,
     };
   }
 
   async getMe(userId) {
     const result = await this.pool.query(
-      `SELECT id, email, username, username_tag, display_name, bio, avatar_url, email_verified, share_listening, share_streak,
+      `SELECT id, email, username, username_tag, display_name, bio, avatar_url, email_verified, is_guest, share_listening, share_streak,
               share_online_status, current_streak
        FROM app_users WHERE id = $1`,
       [userId]
     );
     return this.publicUser(result.rows[0]);
+  }
+
+  async getAccountRecord(lookup) {
+    const value = typeof lookup === 'string' ? lookup.trim() : '';
+    const byId = isUuid(value);
+    const byEmail = safeEmail(value);
+    if (!byId && !byEmail) {
+      const error = new Error('Enter an exact account email address or account ID.');
+      error.status = 400;
+      throw error;
+    }
+    const result = await this.pool.query(
+      byId
+        ? `SELECT id, email, username, username_tag, display_name, created_at
+           FROM app_users WHERE id = $1 LIMIT 1`
+        : `SELECT id, email, username, username_tag, display_name, created_at
+           FROM app_users WHERE LOWER(email) = $1 LIMIT 1`,
+      [value.toLowerCase()]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      username: formatUsername(row) || null,
+      displayName: row.display_name,
+      createdAt: row.created_at,
+    };
+  }
+
+  async grantAdminTokens(adminId) {
+    if (!isUuid(adminId)) {
+      const error = new Error('A valid signed-in admin account is required.');
+      error.status = 400;
+      throw error;
+    }
+    const result = await this.pool.query(
+      `INSERT INTO admin_token_grants (id, recipient_id, admin_id, token_amount)
+       SELECT $1, admin.id, $2, 5000
+       FROM app_users AS admin
+       WHERE admin.id = $2 AND admin.is_guest = FALSE
+       RETURNING id, token_amount, created_at`,
+      [crypto.randomUUID(), adminId]
+    );
+    if (!result.rowCount) {
+      const error = new Error('The selected account was not found.');
+      error.status = 404;
+      throw error;
+    }
+    const grant = result.rows[0];
+    return {id: grant.id, tokens: Number(grant.token_amount), createdAt: grant.created_at};
+  }
+
+  async getAdminTokenGrants(userId) {
+    const result = await this.pool.query(
+      `SELECT id, token_amount, created_at
+       FROM admin_token_grants
+       WHERE recipient_id = $1
+       ORDER BY created_at, id`,
+      [userId]
+    );
+    return result.rows.map(grant => ({
+      id: grant.id,
+      tokens: Number(grant.token_amount),
+      createdAt: grant.created_at,
+    }));
+  }
+
+  async addAdminStreak(userId, days) {
+    if (!isUuid(userId) || !Number.isSafeInteger(days) || days < 1 || days > 100_000) {
+      const error = new Error('Choose between 1 and 100,000 whole days to add.');
+      error.status = 400;
+      throw error;
+    }
+    const result = await this.pool.query(
+      `UPDATE app_users
+       SET current_streak = LEAST(100000, current_streak + $2), last_seen_at = NOW()
+       WHERE id = $1 AND is_guest = FALSE
+       RETURNING id, current_streak`,
+      [userId, days]
+    );
+    if (!result.rowCount) {
+      const error = new Error('The signed-in admin account was not found.');
+      error.status = 404;
+      throw error;
+    }
+    return {userId: result.rows[0].id, currentStreak: Number(result.rows[0].current_streak)};
   }
 
   async updateProfile(userId, body) {
@@ -364,7 +633,7 @@ export class FriendsService {
          SET username = $2, username_tag = $3, display_name = $4, bio = $5,
              share_listening = $6, share_streak = $7, share_online_status = $8, last_seen_at = NOW()
          WHERE id = $1
-         RETURNING id, email, username, username_tag, display_name, bio, avatar_url, email_verified, share_listening, share_streak,
+         RETURNING id, email, username, username_tag, display_name, bio, avatar_url, email_verified, is_guest, share_listening, share_streak,
                    share_online_status, current_streak`,
         [userId, parsedUsername.name, parsedUsername.tag, displayName, bio, body.shareListening, body.shareStreak, body.shareOnlineStatus]
       );

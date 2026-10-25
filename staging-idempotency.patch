@@ -1,0 +1,118 @@
+diff --git a/server.mjs b/server.mjs
+--- a/server.mjs
++++ b/server.mjs
+@@ -828,7 +828,7 @@ async function handleFriendsRequest(req,res,requestUrl){
+       const body=await readFriendsJson(req);
+       const authorizationError=await authorizeAdminPanel(body.code);
+       if(authorizationError)return friendsJson(req,res,authorizationError.status,{error:authorizationError.error});
+-      return friendsJson(req,res,201,{grant:await friendsService.grantAdminTokens(userId)});
++      return friendsJson(req,res,201,{grant:await friendsService.grantAdminTokens(userId,body.idempotencyKey)});
+     }
+     if(pathname==='/api/admin/me/streak'&&req.method==='POST'){
+       const body=await readFriendsJson(req);
+diff --git a/server/friendsService.mjs b/server/friendsService.mjs
+--- a/server/friendsService.mjs
++++ b/server/friendsService.mjs
+@@ -94,10 +94,15 @@ export const FRIENDS_SCHEMA_SQL = `
+     recipient_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+     admin_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+     token_amount INTEGER NOT NULL CHECK (token_amount = 5000),
++    idempotency_key UUID NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   );
++  ALTER TABLE admin_token_grants ADD COLUMN IF NOT EXISTS idempotency_key UUID;
+   CREATE INDEX IF NOT EXISTS admin_token_grants_recipient_idx
+     ON admin_token_grants(recipient_id, created_at);
++  CREATE UNIQUE INDEX IF NOT EXISTS admin_token_grants_admin_idempotency_idx
++    ON admin_token_grants(admin_id, idempotency_key)
++    WHERE idempotency_key IS NOT NULL;
+ `;
+ 
+ export const FRIENDS_DESKTOP_ORIGIN = 'deluxetunes://app';
+@@ -535,19 +540,26 @@ export class FriendsService {
+     };
+   }
+ 
+-  async grantAdminTokens(adminId) {
++  async grantAdminTokens(adminId, idempotencyKey) {
+     if (!isUuid(adminId)) {
+       const error = new Error('A valid signed-in admin account is required.');
+       error.status = 400;
+       throw error;
+     }
++    if (!isUuid(idempotencyKey)) {
++      const error = new Error('A valid token-grant request key is required.');
++      error.status = 400;
++      throw error;
++    }
+     const result = await this.pool.query(
+-      `INSERT INTO admin_token_grants (id, recipient_id, admin_id, token_amount)
+-       SELECT $1, admin.id, $2, 5000
++      `INSERT INTO admin_token_grants (id, recipient_id, admin_id, token_amount, idempotency_key)
++       SELECT $1, admin.id, $2, 5000, $3
+        FROM app_users AS admin
+        WHERE admin.id = $2 AND admin.is_guest = FALSE
++       ON CONFLICT (admin_id, idempotency_key) WHERE idempotency_key IS NOT NULL
++       DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
+        RETURNING id, token_amount, created_at`,
+-      [crypto.randomUUID(), adminId]
++      [crypto.randomUUID(), adminId, idempotencyKey]
+     );
+     if (!result.rowCount) {
+       const error = new Error('The selected account was not found.');
+diff --git a/tests/friends-service.test.mjs b/tests/friends-service.test.mjs
+--- a/tests/friends-service.test.mjs
++++ b/tests/friends-service.test.mjs
+@@ -87,6 +87,8 @@ test('Friends migrations preserve existing data while adding password authentication', () => {
+   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS user_blocks/);
+   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS admin_token_grants/);
+   assert.match(FRIENDS_SCHEMA_SQL, /token_amount INTEGER NOT NULL CHECK \(token_amount = 5000\)/);
++  assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS idempotency_key UUID/);
++  assert.match(FRIENDS_SCHEMA_SQL, /admin_token_grants_admin_idempotency_idx/);
+   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS share_online_status BOOLEAN NOT NULL DEFAULT FALSE/);
+   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS username_tag TEXT/);
+   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT ''/);
+@@ -755,23 +757,34 @@ test('admin panel code validation compares only a configured eight-digit server value',()=>{
+   assert.equal(isValidAdminPanelCode('12345678',''),false);
+ });
+ 
+-test('admin token grants always credit the signed-in admin account by 5,000',async()=>{
++test('admin token grants credit the signed-in admin by 5,000 and replay idempotently',async()=>{
+   const queryCalls=[];
++  const grantsByKey=new Map();
+   const service=new FriendsService({pool:{async query(sql,values){
+     queryCalls.push({sql,values});
+-    return {rowCount:1,rows:[{id:'grant-id',token_amount:5000,created_at:'now'}]};
++    if(!grantsByKey.has(values[2])){
++      grantsByKey.set(values[2],{id:`grant-${grantsByKey.size}`,token_amount:5000,created_at:'now'});
++    }
++    return {rowCount:1,rows:[grantsByKey.get(values[2])]};
+   }}});
+-  const grant=await service.grantAdminTokens(userId);
+-  await service.grantAdminTokens(userId);
+-  assert.deepEqual(grant,{id:'grant-id',tokens:5000,createdAt:'now'});
+-  assert.equal(queryCalls.length,2);
++  const requestKey='44ea664e-b694-4d73-84b1-3610f30f037d';
++  const grant=await service.grantAdminTokens(userId,requestKey);
++  const replay=await service.grantAdminTokens(userId,requestKey);
++  const nextGrant=await service.grantAdminTokens(userId,'75d9bd89-1e04-4c1d-8d8a-78167f652f6b');
++  assert.deepEqual(grant,{id:'grant-0',tokens:5000,createdAt:'now'});
++  assert.deepEqual(replay,grant);
++  assert.notEqual(nextGrant.id,grant.id);
++  assert.equal(queryCalls.length,3);
+   for(const call of queryCalls){
+-    assert.match(call.sql,/admin\.id, \$2, 5000/);
++    assert.match(call.sql,/admin\.id, \$2, 5000, \$3/);
+     assert.match(call.sql,/admin\.id = \$2 AND admin\.is_guest = FALSE/);
++    assert.match(call.sql,/ON CONFLICT \(admin_id, idempotency_key\)/);
+     assert.equal(call.values[1],userId);
+   }
+-  assert.notEqual(queryCalls[0].values[0],queryCalls[1].values[0]);
+-  await assert.rejects(()=>service.grantAdminTokens('bad-id'),{status:400});
++  assert.equal(queryCalls[0].values[2],queryCalls[1].values[2]);
++  assert.notEqual(queryCalls[0].values[2],queryCalls[2].values[2]);
++  await assert.rejects(()=>service.grantAdminTokens('bad-id',requestKey),{status:400});
++  await assert.rejects(()=>service.grantAdminTokens(userId,'bad-key'),{status:400});
+ });
+ 
+ test('admin streak additions are repeatable and only modify the signed-in admin account',async()=>{

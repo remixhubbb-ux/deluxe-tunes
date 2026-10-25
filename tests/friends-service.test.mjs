@@ -5,10 +5,16 @@ import bcrypt from 'bcryptjs';
 import {
   FRIENDS_SCHEMA_SQL,
   FRIENDS_DESKTOP_ORIGIN,
+<<<<<<< Updated upstream
+=======
+  FRIENDS_NATIVE_ORIGINS,
+>>>>>>> Stashed changes
   getFriendsAllowedOrigins,
   FriendsService,
   getFriendsCookieName,
   getFriendsCookieOptions,
+  isAccountRecordAdmin,
+  isValidAdminPanelCode,
 } from '../server/friendsService.mjs';
 
 const userId = '9d22bc92-60ae-4dd2-87de-33fd33a4bedd';
@@ -51,6 +57,7 @@ function makeAuthPool({loginRow = null, rateLimitAttempts = 1, duplicateAccount 
               avatar_url: null,
               email_verified: false,
               password_hash: values[5],
+              is_guest: sql.includes('TRUE, FALSE'),
               share_listening: false,
               share_streak: false,
               share_online_status: false,
@@ -70,13 +77,19 @@ function makeAuthPool({loginRow = null, rateLimitAttempts = 1, duplicateAccount 
 test('Friends migrations preserve existing data while adding password authentication', () => {
   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS app_users/);
   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS app_auth_sessions/);
+  assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS app_password_reset_tokens/);
+  assert.match(FRIENDS_SCHEMA_SQL, /token_hash TEXT PRIMARY KEY/);
+  assert.match(FRIENDS_SCHEMA_SQL, /app_password_reset_tokens_user_idx/);
   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS password_hash TEXT/);
+  assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE/);
   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE/);
   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS app_auth_rate_limits/);
   assert.doesNotMatch(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS app_auth_challenges/);
   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS friend_requests/);
   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS friendships/);
   assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS user_blocks/);
+  assert.match(FRIENDS_SCHEMA_SQL, /CREATE TABLE IF NOT EXISTS admin_token_grants/);
+  assert.match(FRIENDS_SCHEMA_SQL, /token_amount INTEGER NOT NULL CHECK \(token_amount = 5000\)/);
   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS share_online_status BOOLEAN NOT NULL DEFAULT FALSE/);
   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS username_tag TEXT/);
   assert.match(FRIENDS_SCHEMA_SQL, /ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT ''/);
@@ -87,6 +100,31 @@ test('Friends migrations preserve existing data while adding password authentica
   assert.doesNotMatch(FRIENDS_SCHEMA_SQL, /\b(DROP TABLE|TRUNCATE|DELETE FROM app_users|DELETE FROM friendships)\b/i);
 });
 
+test('guest profiles are created without account credentials and receive a long-lived private session', async () => {
+  const {pool, calls} = makeAuthPool();
+  const service = new FriendsService({pool});
+  const result = await service.createGuest('127.0.0.1');
+  const insert = calls.find(call => call.sql.includes('INSERT INTO app_users'));
+  const session = calls.find(call => call.sql.includes('INSERT INTO app_auth_sessions'));
+
+  assert.equal(result.user.isGuest, true);
+  assert.equal(result.user.emailVerified, false);
+  assert.match(result.user.username, /^listener_[a-f0-9]{10}#[0-9]{4}$/);
+  assert.match(insert.values[1], /^guest-[0-9a-f-]+@guest\.deluxetunes\.invalid$/);
+  assert.equal(insert.values[5], undefined);
+  assert.match(insert.sql, /is_guest/);
+  assert.equal(session.values[2], 365);
+  assert.match(session.values[0], /^[a-f0-9]{64}$/);
+  assert.notEqual(session.values[0], result.token);
+});
+
+test('guest profile creation is rate-limited per source IP', async () => {
+  const {pool, calls} = makeAuthPool({rateLimitAttempts: 21});
+  const service = new FriendsService({pool});
+  await assert.rejects(service.createGuest('127.0.0.1'), error => error.status === 429);
+  assert.equal(calls.some(call => call.sql.includes('INSERT INTO app_users')), false);
+});
+
 test('server sessions use HttpOnly cookies and production-only Secure attributes', () => {
   assert.equal(getFriendsCookieName(), 'dt_friends_session');
   assert.match(getFriendsCookieOptions(false), /HttpOnly/);
@@ -95,6 +133,76 @@ test('server sessions use HttpOnly cookies and production-only Secure attributes
   assert.match(getFriendsCookieOptions(true), /HttpOnly/);
   assert.match(getFriendsCookieOptions(true), /SameSite=None/);
   assert.match(getFriendsCookieOptions(true), /Secure/);
+  assert.match(getFriendsCookieOptions(true), /Partitioned/);
+  assert.doesNotMatch(getFriendsCookieOptions(false), /Partitioned/);
+});
+
+test('account-record admin access uses a case-insensitive private email allowlist and rejects guests', () => {
+  assert.equal(isAccountRecordAdmin({email: 'Admin@Example.com', isGuest: false}, 'admin@example.com'), true);
+  assert.equal(isAccountRecordAdmin({email: 'other@example.com', isGuest: false}, 'admin@example.com'), false);
+  assert.equal(isAccountRecordAdmin({email: 'admin@example.com', isGuest: true}, 'admin@example.com'), false);
+  assert.equal(isAccountRecordAdmin({email: 'admin@example.com', isGuest: false}, ''), false);
+});
+
+test('account-record lookup matches exact email or UUID and returns only basic fields', async () => {
+  const calls = [];
+  const pool = {
+    async query(sql, values) {
+      calls.push({sql, values});
+      return {
+        rowCount: 1,
+        rows: [{
+          id: userId,
+          email: 'admin@example.com',
+          username: 'developeraccount',
+          username_tag: '1234',
+          display_name: 'Developer',
+          created_at: new Date('2025-01-01T00:00:00Z'),
+          password_hash: 'must-not-be-returned',
+          session_token: 'must-not-be-returned',
+        }],
+      };
+    },
+  };
+  const service = new FriendsService({pool});
+  const byEmail = await service.getAccountRecord(' ADMIN@example.com ');
+  assert.deepEqual(calls[0].values, ['admin@example.com']);
+  assert.match(calls[0].sql, /WHERE LOWER\(email\) = \$1 LIMIT 1/);
+  assert.deepEqual(byEmail, {
+    id: userId,
+    email: 'admin@example.com',
+    username: 'developeraccount#1234',
+    displayName: 'Developer',
+    createdAt: new Date('2025-01-01T00:00:00Z'),
+  });
+
+  await service.getAccountRecord(userId);
+  assert.deepEqual(calls[1].values, [userId]);
+  assert.match(calls[1].sql, /WHERE id = \$1 LIMIT 1/);
+  await assert.rejects(service.getAccountRecord('developeraccount'), error => error.status === 400);
+  assert.equal(calls.length, 2);
+});
+
+test('desktop Friends requests use a dedicated non-opaque CORS origin', () => {
+  assert.equal(FRIENDS_DESKTOP_ORIGIN, 'deluxetunes://app');
+  assert.deepEqual(FRIENDS_NATIVE_ORIGINS, ['capacitor://localhost', 'https://localhost']);
+});
+
+test('explicit staging origins replace the production web origin while retaining desktop access', () => {
+  const allowed = getFriendsAllowedOrigins({
+    production: true,
+    appOrigin: 'https://friends-preview.pages.dev',
+    allowedOrigins: 'https://friends-preview.pages.dev',
+  });
+  assert.deepEqual([...allowed], ['https://friends-preview.pages.dev', FRIENDS_DESKTOP_ORIGIN, ...FRIENDS_NATIVE_ORIGINS]);
+  assert.equal(allowed.has('https://deluxetunesapp.pages.dev'), false);
+  assert.equal(allowed.has('https://attacker.example'), false);
+  assert.equal(allowed.has('null'), false);
+});
+
+test('production defaults allow the production web origin and supported app origins', () => {
+  const allowed = getFriendsAllowedOrigins({production: true});
+  assert.deepEqual([...allowed], ['https://deluxetunesapp.pages.dev', FRIENDS_DESKTOP_ORIGIN, ...FRIENDS_NATIVE_ORIGINS]);
 });
 
 test('desktop Friends requests use a dedicated non-opaque CORS origin', () => {
@@ -218,6 +326,89 @@ test('login rejects invalid credentials and rate-limits repeated attempts', asyn
       error => error.status === 401
     );
     assert.equal(calls.some(call => call.sql.includes('INSERT INTO app_auth_sessions')), false);
+  });
+
+  test('password reset issues only hashed expiring tokens for existing non-guest accounts', async t => {
+    const email = 'existing@example.com';
+    const account = {id: userId, email, is_guest: false};
+    const calls = [];
+    const tokens = new Map();
+    let rateLimitAttempts = 1;
+    const client = {
+      async query(sql, values = []) {
+        calls.push({sql, values});
+        if (sql.includes('INSERT INTO app_auth_rate_limits')) return {rowCount: 1, rows: [{attempts: rateLimitAttempts}]};
+        if (sql.includes('DELETE FROM app_password_reset_tokens WHERE user_id')) {
+          for (const [tokenHash, row] of tokens) if (row.userId === values[0]) tokens.delete(tokenHash);
+        } else if (sql.includes('INSERT INTO app_password_reset_tokens')) {
+          tokens.set(values[0], {userId: values[1], expiresAt: Date.now() + 30 * 60_000});
+        } else if (sql.includes('SELECT user_id FROM app_password_reset_tokens')) {
+          const row = tokens.get(values[0]);
+          return {rowCount: row && row.expiresAt > Date.now() ? 1 : 0, rows: row ? [{user_id: row.userId}] : []};
+        } else if (sql.includes('UPDATE app_users SET password_hash')) {
+          return {rowCount: values[0] === userId ? 1 : 0, rows: []};
+        } else if (sql.includes('DELETE FROM app_password_reset_tokens WHERE token_hash')) {
+          tokens.delete(values[0]);
+        }
+        return {rowCount: 1, rows: []};
+      },
+      release() {},
+    };
+    const pool = {
+      async connect() { return client; },
+      async query(sql, values = []) {
+        calls.push({sql, values});
+        if (sql.includes('SELECT id FROM app_users')) {
+          return {rowCount: values[0] === email ? 1 : 0, rows: values[0] === email ? [{id: account.id}] : []};
+        }
+        return {rowCount: 1, rows: []};
+      },
+    };
+    const service = new FriendsService({pool});
+
+    const issued = await service.requestPasswordReset(email, '127.0.0.1');
+    assert.equal(issued.email, email);
+    assert.match(issued.token, /^[A-Za-z0-9_-]{43}$/);
+    const inserted = calls.find(call => call.sql.includes('INSERT INTO app_password_reset_tokens'));
+    assert.match(inserted.sql, /INTERVAL '30 minutes'/);
+    assert.match(inserted.values[0], /^[a-f0-9]{64}$/);
+    assert.notEqual(inserted.values[0], issued.token);
+    assert.ok(calls.some(call =>
+      call.sql.includes('SELECT id FROM app_users WHERE id = $1 FOR UPDATE') &&
+      call.values[0] === userId
+    ));
+    assert.equal(tokens.size, 1);
+
+    const resetTokenHash = inserted.values[0];
+    await service.resetPassword(issued.token, 'a-new-secure-password');
+    assert.ok(calls.some(call =>
+      call.sql.includes('UPDATE app_users SET password_hash') &&
+      call.values[0] === userId &&
+      call.values[1] !== 'a-new-secure-password'
+    ));
+    assert.ok(calls.some(call => call.sql.includes('DELETE FROM app_auth_sessions WHERE user_id') && call.values[0] === userId));
+    assert.equal(tokens.has(resetTokenHash), false);
+    assert.equal(calls.some(call => /INSERT INTO app_users|DELETE FROM app_users|DELETE FROM friendships/.test(call.sql)), false);
+    await assert.rejects(service.resetPassword(issued.token, 'another-new-password'), error => error.status === 400);
+
+    await t.test('unknown emails create no reset token', async () => {
+      const unknown = await service.requestPasswordReset('nobody@example.com', '127.0.0.1');
+      assert.equal(unknown, null);
+      assert.equal(tokens.size, 0);
+    });
+
+    await t.test('rate limits reset requests by IP and email', async () => {
+      rateLimitAttempts = 4;
+      await assert.rejects(service.requestPasswordReset(email, '127.0.0.2'), error => error.status === 429);
+    });
+
+    await t.test('expired reset token is rejected', async () => {
+      rateLimitAttempts = 1;
+      const expired = await service.requestPasswordReset(email, '127.0.0.3');
+      const tokenHash = calls.findLast(call => call.sql.includes('INSERT INTO app_password_reset_tokens')).values[0];
+      tokens.get(tokenHash).expiresAt = Date.now() - 1;
+      await assert.rejects(service.resetPassword(expired.token, 'a-new-secure-password'), error => error.status === 400);
+    });
   });
   await t.test('legacy account without a server password', async () => {
     const {pool, calls} = makeAuthPool({loginRow: {...account, password_hash: null}});
@@ -580,4 +771,46 @@ test('online status is returned when the profile owner opts in', () => {
     last_seen_at: new Date(),
   });
   assert.equal(friend.online, true);
+});
+
+test('admin panel code validation compares only a configured eight-digit server value',()=>{
+  assert.equal(isValidAdminPanelCode('12345678','12345678'),true);
+  assert.equal(isValidAdminPanelCode('12345678','87654321'),false);
+  assert.equal(isValidAdminPanelCode('1234567','12345678'),false);
+  assert.equal(isValidAdminPanelCode('123456789','12345678'),false);
+  assert.equal(isValidAdminPanelCode('12345678',''),false);
+});
+
+test('admin token grants always credit the signed-in admin account by 5,000',async()=>{
+  const queryCalls=[];
+  const service=new FriendsService({pool:{async query(sql,values){
+    queryCalls.push({sql,values});
+    return {rowCount:1,rows:[{id:'grant-id',token_amount:5000,created_at:'now'}]};
+  }}});
+  const grant=await service.grantAdminTokens(userId);
+  await service.grantAdminTokens(userId);
+  assert.deepEqual(grant,{id:'grant-id',tokens:5000,createdAt:'now'});
+  assert.equal(queryCalls.length,2);
+  for(const call of queryCalls){
+    assert.match(call.sql,/admin\.id, \$2, 5000/);
+    assert.match(call.sql,/admin\.id = \$2 AND admin\.is_guest = FALSE/);
+    assert.equal(call.values[1],userId);
+  }
+  assert.notEqual(queryCalls[0].values[0],queryCalls[1].values[0]);
+  await assert.rejects(()=>service.grantAdminTokens('bad-id'),{status:400});
+});
+
+test('admin streak additions are repeatable and only modify the signed-in admin account',async()=>{
+  let queryCall;
+  const service=new FriendsService({pool:{async query(sql,values){
+    queryCall={sql,values};
+    return {rowCount:1,rows:[{id:userId,current_streak:12+values[1]}]};
+  }}});
+  const result=await service.addAdminStreak(userId,7);
+  assert.deepEqual(result,{userId,currentStreak:19});
+  assert.match(queryCall.sql,/current_streak = LEAST\(100000, current_streak \+ \$2\)/);
+  assert.match(queryCall.sql,/WHERE id = \$1 AND is_guest = FALSE/);
+  assert.deepEqual(queryCall.values,[userId,7]);
+  await assert.rejects(()=>service.addAdminStreak(userId,0),{status:400});
+  await assert.rejects(()=>service.addAdminStreak(userId,1.5),{status:400});
 });
