@@ -5,10 +5,7 @@ import bcrypt from 'bcryptjs';
 import {
   FRIENDS_SCHEMA_SQL,
   FRIENDS_DESKTOP_ORIGIN,
-<<<<<<< Updated upstream
-=======
   FRIENDS_NATIVE_ORIGINS,
->>>>>>> Stashed changes
   getFriendsAllowedOrigins,
   FriendsService,
   getFriendsCookieName,
@@ -203,27 +200,6 @@ test('explicit staging origins replace the production web origin while retaining
 test('production defaults allow the production web origin and supported app origins', () => {
   const allowed = getFriendsAllowedOrigins({production: true});
   assert.deepEqual([...allowed], ['https://deluxetunesapp.pages.dev', FRIENDS_DESKTOP_ORIGIN, ...FRIENDS_NATIVE_ORIGINS]);
-});
-
-test('desktop Friends requests use a dedicated non-opaque CORS origin', () => {
-  assert.equal(FRIENDS_DESKTOP_ORIGIN, 'deluxetunes://app');
-});
-
-test('explicit staging origins replace the production web origin while retaining desktop access', () => {
-  const allowed = getFriendsAllowedOrigins({
-    production: true,
-    appOrigin: 'https://friends-preview.pages.dev',
-    allowedOrigins: 'https://friends-preview.pages.dev',
-  });
-  assert.deepEqual([...allowed], ['https://friends-preview.pages.dev', FRIENDS_DESKTOP_ORIGIN]);
-  assert.equal(allowed.has('https://deluxetunesapp.pages.dev'), false);
-  assert.equal(allowed.has('https://attacker.example'), false);
-  assert.equal(allowed.has('null'), false);
-});
-
-test('production defaults allow only the production web origin and desktop app', () => {
-  const allowed = getFriendsAllowedOrigins({production: true});
-  assert.deepEqual([...allowed], ['https://deluxetunesapp.pages.dev', FRIENDS_DESKTOP_ORIGIN]);
 });
 
 test('registration stores a bcrypt password hash, starts a session, and leaves email unverified', async () => {

@@ -101,10 +101,7 @@ export const FRIENDS_SCHEMA_SQL = `
 `;
 
 export const FRIENDS_DESKTOP_ORIGIN = 'deluxetunes://app';
-<<<<<<< Updated upstream
-=======
 export const FRIENDS_NATIVE_ORIGINS = ['capacitor://localhost', 'https://localhost'];
->>>>>>> Stashed changes
 
 export function getFriendsAllowedOrigins({production, appOrigin, allowedOrigins} = {}) {
   const configuredOrigins = String(allowedOrigins || '')
@@ -114,10 +111,7 @@ export function getFriendsAllowedOrigins({production, appOrigin, allowedOrigins}
   return new Set([
     ...(configuredOrigins.length ? configuredOrigins : ['https://deluxetunesapp.pages.dev']),
     FRIENDS_DESKTOP_ORIGIN,
-<<<<<<< Updated upstream
-=======
     ...FRIENDS_NATIVE_ORIGINS,
->>>>>>> Stashed changes
     ...(appOrigin && (!production || appOrigin.startsWith('https://')) ? [appOrigin] : []),
     ...(!production ? ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'] : []),
   ]);

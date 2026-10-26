@@ -5,12 +5,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import crypto from 'node:crypto';
 import pg from 'pg';
-<<<<<<< Updated upstream
-import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsAllowedOrigins, getFriendsCookieName, getFriendsCookieOptions} from './server/friendsService.mjs';
-=======
 import {FriendsService, FRIENDS_SCHEMA_SQL, getFriendsAllowedOrigins, getFriendsCookieName, getFriendsCookieOptions, isAccountRecordAdmin, isValidAdminPanelCode} from './server/friendsService.mjs';
 import {createPasswordResetMailer} from './server/passwordResetEmail.mjs';
->>>>>>> Stashed changes
 import {createReleaseAnnouncementService,createReleaseCataloguePoller,fetchReleaseCatalog,MAX_WEBHOOK_ATTEMPTS,parseBundledSongCatalog,sendDiscordReleaseWebhookTest} from './releaseAnnouncements.mjs';
 
 const { Pool } = pg;
